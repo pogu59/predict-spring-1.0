@@ -32,6 +32,19 @@ public final class TierPolicy {
         return Tier.UNRANKED;
     }
 
+    /**
+     * 활동성 강등 상태(users.activity_suppressed)를 반영한 실시간 티어 산정.
+     * 점수만으로는 다이아/마스터 구간이어도 activitySuppressed=true면 플래티넘까지만 허용한다
+     * (다이아/마스터 복귀는 오직 주간 활동성 체크(WeeklyActivityService)로만 가능).
+     */
+    public static Tier fromScore(int credibilityScore, boolean activitySuppressed) {
+        Tier tier = fromScore(credibilityScore);
+        if (activitySuppressed && (tier == Tier.DIAMOND || tier == Tier.MASTER)) {
+            return Tier.PLATINUM;
+        }
+        return tier;
+    }
+
     /** 다이아/마스터 주간 활동성 미달 시 표시 티어를 한 단계 낮출 때만 사용한다. */
     public static Tier oneStepDown(Tier tier) {
         return switch (tier) {

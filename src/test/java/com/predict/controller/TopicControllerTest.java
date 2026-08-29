@@ -8,11 +8,9 @@ import com.predict.controller.dto.TopicResponse;
 import com.predict.controller.dto.VoteRequest;
 import com.predict.controller.dto.VoteResponse;
 import com.predict.enums.Choice;
-import com.predict.repository.CategoryRepository;
 import com.predict.repository.TopicRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
-import com.predict.service.SettlementService;
 import com.predict.service.VoteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,23 +32,18 @@ class TopicControllerTest {
     @Mock
     private TopicRepository topicRepository;
     @Mock
-    private CategoryRepository categoryRepository;
-    @Mock
     private UserRepository userRepository;
     @Mock
     private VoteRepository voteRepository;
     @Mock
     private VoteService voteService;
-    @Mock
-    private SettlementService settlementService;
 
     private TopicController topicController;
     private Category category;
 
     @BeforeEach
     void setUp() {
-        topicController = new TopicController(topicRepository, categoryRepository, userRepository,
-                voteRepository, voteService, settlementService);
+        topicController = new TopicController(topicRepository, userRepository, voteRepository, voteService);
         category = new Category(1, "정치");
     }
 
@@ -69,7 +62,7 @@ class TopicControllerTest {
     void get_confirmedTopic_exposesYesNoCounts() {
         Topic topic = new Topic(category, "제목", null, LocalDateTime.now().minusDays(2), LocalDateTime.now().minusHours(1));
         topic.closeForResult(6, 4);
-        topic.confirm(Choice.YES, LocalDateTime.now());
+        topic.confirm(Choice.YES, LocalDateTime.now(), null);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
 
         TopicResponse response = topicController.get(1L);

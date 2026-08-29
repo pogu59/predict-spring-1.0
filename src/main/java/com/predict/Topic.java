@@ -51,6 +51,11 @@ public class Topic {
     @Column(name = "confirmed_at")
     private LocalDateTime confirmedAt;
 
+    /** 누가 이 결과를 확정했는지(책임 소재 추적용). 정정 시 다시 null로 되돌아간다. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "confirmed_by")
+    private User confirmedBy;
+
     /** 정답. void 처리된 주제는 끝까지 null로 유지된다. */
     @Column(name = "correct_answer")
     private Choice correctAnswer;
@@ -88,16 +93,44 @@ public class Topic {
     }
 
     /** 정답을 확정한다. */
-    public void confirm(Choice correctAnswer, LocalDateTime confirmedAt) {
+    public void confirm(Choice correctAnswer, LocalDateTime confirmedAt, User confirmedBy) {
         this.correctAnswer = correctAnswer;
         this.confirmedAt = confirmedAt;
+        this.confirmedBy = confirmedBy;
         this.status = TopicStatus.CONFIRMED;
     }
 
     /** 무효 처리한다. correct_answer는 채우지 않는다. */
-    public void voidTopic(LocalDateTime confirmedAt) {
+    public void voidTopic(LocalDateTime confirmedAt, User confirmedBy) {
         this.confirmedAt = confirmedAt;
+        this.confirmedBy = confirmedBy;
         this.status = TopicStatus.VOID;
+    }
+
+    /**
+     * 오확정 정정(SettlementCorrectionService)에서 호출. 결과대기 상태로 되돌려
+     * sp_confirm_topic_result에 해당하는 정산 절차를 올바른 정답으로 재실행할 수 있게 한다.
+     */
+    public void resetForCorrection() {
+        this.correctAnswer = null;
+        this.confirmedAt = null;
+        this.confirmedBy = null;
+        this.status = TopicStatus.PENDING_RESULT;
+    }
+
+    /** 참여자 0명일 때만 허용되는 전체 내용 수정(AdminTopicService). */
+    public void updateContent(Category category, String title, String description,
+                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+        this.category = category;
+        this.title = title;
+        this.description = description;
+        this.voteStartAt = voteStartAt;
+        this.voteDeadlineAt = voteDeadlineAt;
+    }
+
+    /** 마감시각 연장 전용(AdminTopicService). 단축은 허용하지 않는다(서비스 레이어에서 검증). */
+    public void extendDeadline(LocalDateTime newDeadline) {
+        this.voteDeadlineAt = newDeadline;
     }
 
 }

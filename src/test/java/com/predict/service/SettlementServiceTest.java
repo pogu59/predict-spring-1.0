@@ -64,7 +64,7 @@ class SettlementServiceTest {
         Vote vote = new Vote(user, topic, Choice.YES);
         when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, Choice.YES);
+        settlementService.confirmTopic(1L, Choice.YES, null);
 
         ArgumentCaptor<ScoreSettlement> captor = ArgumentCaptor.forClass(ScoreSettlement.class);
         verify(scoreSettlementRepository).save(captor.capture());
@@ -82,7 +82,7 @@ class SettlementServiceTest {
         Vote vote = new Vote(user, topic, Choice.NO);
         when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, Choice.YES);
+        settlementService.confirmTopic(1L, Choice.YES, null);
 
         assertThat(user.getCredibilityScore()).isZero();
         verify(tierChangeRepository, never()).save(any());
@@ -97,7 +97,7 @@ class SettlementServiceTest {
         Vote vote = new Vote(user, topic, Choice.YES); // 정답, 다수(p=0.55) -> 대략 +18점
         when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, Choice.YES);
+        settlementService.confirmTopic(1L, Choice.YES, null);
 
         ArgumentCaptor<TierChange> captor = ArgumentCaptor.forClass(TierChange.class);
         verify(tierChangeRepository).save(captor.capture());
@@ -109,6 +109,21 @@ class SettlementServiceTest {
     }
 
     @Test
+    void confirmTopic_activitySuppressedUser_neverRecalculatedAboveDiamondEvenIfScoreQualifies() {
+        User user = new User("활동성강등유저", "direct", null);
+        user.applyScoreDelta(485); // 다이아 구간, 마스터(500) 문턱 바로 아래
+        user.changeTier(Tier.DIAMOND);
+        user.setActivitySuppressed(true); // 지난주 활동성 체크 미달로 강등 상태
+        Vote vote = new Vote(user, topic, Choice.YES); // 정답, 다수(p=0.55) -> 대략 +18점 -> 503점(마스터 구간)
+        when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
+
+        settlementService.confirmTopic(1L, Choice.YES, null);
+
+        assertThat(user.getCredibilityScore()).isGreaterThanOrEqualTo(500);
+        assertThat(user.getTier()).isEqualTo(Tier.PLATINUM); // 점수는 마스터 구간이어도 강등 상태라 플래티넘 캡
+    }
+
+    @Test
     void voidTopic_leavesScoreAndTierUntouched() {
         User user = new User("참여자", "direct", null);
         user.applyScoreDelta(250);
@@ -116,7 +131,7 @@ class SettlementServiceTest {
         Vote vote = new Vote(user, topic, Choice.YES);
         when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
 
-        settlementService.voidTopic(1L);
+        settlementService.voidTopic(1L, null);
 
         ArgumentCaptor<ScoreSettlement> captor = ArgumentCaptor.forClass(ScoreSettlement.class);
         verify(scoreSettlementRepository).save(captor.capture());

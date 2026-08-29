@@ -2,11 +2,16 @@ package com.predict.controller;
 
 import com.predict.User;
 import com.predict.controller.dto.LoginSessionResponse;
+import com.predict.controller.dto.MyStatsResponse;
+import com.predict.controller.dto.MyVoteResponse;
 import com.predict.controller.dto.ShareClickRequest;
 import com.predict.controller.dto.ShareClickResponse;
 import com.predict.controller.dto.SignupRequest;
 import com.predict.controller.dto.UserResponse;
+import com.predict.enums.SettlementResult;
+import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.UserRepository;
+import com.predict.repository.VoteRepository;
 import com.predict.service.LoginSessionService;
 import com.predict.service.ShareClickService;
 import com.predict.service.UserService;
@@ -20,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -28,13 +35,18 @@ public class UserController {
     private final UserService userService;
     private final LoginSessionService loginSessionService;
     private final ShareClickService shareClickService;
+    private final VoteRepository voteRepository;
+    private final ScoreSettlementRepository scoreSettlementRepository;
 
     public UserController(UserRepository userRepository, UserService userService,
-                           LoginSessionService loginSessionService, ShareClickService shareClickService) {
+                           LoginSessionService loginSessionService, ShareClickService shareClickService,
+                           VoteRepository voteRepository, ScoreSettlementRepository scoreSettlementRepository) {
         this.userRepository = userRepository;
         this.userService = userService;
         this.loginSessionService = loginSessionService;
         this.shareClickService = shareClickService;
+        this.voteRepository = voteRepository;
+        this.scoreSettlementRepository = scoreSettlementRepository;
     }
 
     @PostMapping
@@ -59,6 +71,26 @@ public class UserController {
     @ResponseStatus(HttpStatus.CREATED)
     public ShareClickResponse recordShareClick(@PathVariable Long userId, @Valid @RequestBody ShareClickRequest request) {
         return ShareClickResponse.from(shareClickService.recordClick(requireUser(userId), request.channel()));
+    }
+
+    /** 마이페이지 요약 통계. */
+    @GetMapping("/{userId}/stats")
+    public MyStatsResponse stats(@PathVariable Long userId) {
+        requireUser(userId);
+        long totalVotes = voteRepository.countByUserId(userId);
+        long correctCount = scoreSettlementRepository.countByUserIdAndResultAndIsReversedFalse(userId, SettlementResult.CORRECT);
+        long gradedCount = scoreSettlementRepository.countByUserIdAndResultInAndIsReversedFalse(
+                userId, List.of(SettlementResult.CORRECT, SettlementResult.INCORRECT));
+        return new MyStatsResponse(totalVotes, correctCount, gradedCount);
+    }
+
+    /** 마이페이지 최근 투표 기록(최신순). */
+    @GetMapping("/{userId}/votes")
+    public List<MyVoteResponse> votes(@PathVariable Long userId) {
+        requireUser(userId);
+        return voteRepository.findByUserIdOrderByVotedAtDesc(userId).stream()
+                .map(vote -> MyVoteResponse.from(vote, scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId())))
+                .toList();
     }
 
     private User requireUser(Long userId) {

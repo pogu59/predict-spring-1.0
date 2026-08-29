@@ -46,9 +46,9 @@ public class SettlementService {
     }
 
     @Transactional
-    public void confirmTopic(Long topicId, Choice correctAnswer) {
+    public void confirmTopic(Long topicId, Choice correctAnswer, User admin) {
         Topic topic = requirePendingTopic(topicId);
-        topic.confirm(correctAnswer, LocalDateTime.now());
+        topic.confirm(correctAnswer, LocalDateTime.now(), admin);
 
         int totalVotes = topic.getYesCount() + topic.getNoCount();
         for (Vote vote : voteRepository.findByTopicId(topicId)) {
@@ -67,9 +67,9 @@ public class SettlementService {
     }
 
     @Transactional
-    public void voidTopic(Long topicId) {
+    public void voidTopic(Long topicId, User admin) {
         Topic topic = requirePendingTopic(topicId);
-        topic.voidTopic(LocalDateTime.now());
+        topic.voidTopic(LocalDateTime.now(), admin);
 
         int totalVotes = topic.getYesCount() + topic.getNoCount();
         for (Vote vote : voteRepository.findByTopicId(topicId)) {
@@ -96,7 +96,7 @@ public class SettlementService {
 
     private void applyNaturalTierChange(User user, int scoreAfter) {
         Tier previousTier = user.getTier();
-        Tier newTier = TierPolicy.fromScore(scoreAfter);
+        Tier newTier = TierPolicy.fromScore(scoreAfter, user.isActivitySuppressed());
         if (newTier == previousTier) {
             return;
         }

@@ -72,6 +72,8 @@ public class WeeklyActivityService {
             WeeklyActivitySnapshot snapshot = snapshotRepository.save(new WeeklyActivitySnapshot(
                     user, weekStart, weekEnd, (int) voteCount, metRequirement, tierBefore, tierAfter));
 
+            user.setActivitySuppressed(!metRequirement);
+
             if (tierAfter != tierBefore) {
                 TierChangeReason reason = metRequirement
                         ? TierChangeReason.ACTIVITY_RESTORATION

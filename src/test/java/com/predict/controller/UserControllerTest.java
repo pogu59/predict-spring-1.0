@@ -3,7 +3,9 @@ package com.predict.controller;
 import com.predict.User;
 import com.predict.controller.dto.SignupRequest;
 import com.predict.controller.dto.UserResponse;
+import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.UserRepository;
+import com.predict.repository.VoteRepository;
 import com.predict.service.LoginSessionService;
 import com.predict.service.ShareClickService;
 import com.predict.service.UserService;
@@ -30,12 +32,17 @@ class UserControllerTest {
     private LoginSessionService loginSessionService;
     @Mock
     private ShareClickService shareClickService;
+    @Mock
+    private VoteRepository voteRepository;
+    @Mock
+    private ScoreSettlementRepository scoreSettlementRepository;
 
     private UserController userController;
 
     @BeforeEach
     void setUp() {
-        userController = new UserController(userRepository, userService, loginSessionService, shareClickService);
+        userController = new UserController(userRepository, userService, loginSessionService, shareClickService,
+                voteRepository, scoreSettlementRepository);
     }
 
     @Test

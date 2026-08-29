@@ -26,6 +26,14 @@ class TierPolicyTest {
     }
 
     @Test
+    void fromScore_withActivitySuppressed_capsDiamondAndMasterAtPlatinum() {
+        assertThat(TierPolicy.fromScore(450, true)).isEqualTo(Tier.PLATINUM);
+        assertThat(TierPolicy.fromScore(600, true)).isEqualTo(Tier.PLATINUM);
+        assertThat(TierPolicy.fromScore(250, true)).isEqualTo(Tier.GOLD); // 캡 대상 아닌 구간은 그대로
+        assertThat(TierPolicy.fromScore(450, false)).isEqualTo(Tier.DIAMOND);
+    }
+
+    @Test
     void oneStepDown_onlyAppliesToDiamondAndMaster() {
         assertThat(TierPolicy.oneStepDown(Tier.MASTER)).isEqualTo(Tier.DIAMOND);
         assertThat(TierPolicy.oneStepDown(Tier.DIAMOND)).isEqualTo(Tier.PLATINUM);

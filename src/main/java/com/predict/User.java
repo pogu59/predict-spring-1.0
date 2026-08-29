@@ -1,5 +1,6 @@
 package com.predict;
 
+import com.predict.enums.Role;
 import com.predict.enums.Tier;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,6 +34,10 @@ public class User {
     @Column(name = "signup_channel", length = 50)
     private String signupChannel;
 
+    /** 카카오 로그인으로 가입한 경우의 카카오 회원번호. 재로그인 시 이 값으로 유저를 식별한다. */
+    @Column(name = "kakao_id", unique = true, length = 50)
+    private String kakaoId;
+
     /**
      * 가입 시 사용한 추천 코드. FK가 share_clicks의 PK가 아니라
      * UNIQUE 컬럼(referral_code)을 가리키므로 referencedColumnName을 명시한다.
@@ -49,6 +54,18 @@ public class User {
     @Column(name = "tier", nullable = false, length = 20)
     private Tier tier = Tier.UNRANKED;
 
+    /** 관리자 페이지 접근 권한. 부여/해제는 API 없이 DB에서 직접 처리한다. */
+    @Column(name = "role", nullable = false, length = 10)
+    private Role role = Role.USER;
+
+    /**
+     * 다이아/마스터 주간 활동성 미달로 강등된 상태인지(WeeklyActivityService가 갱신).
+     * true인 동안은 점수가 충분해도 실시간 정산(SettlementService)으로 다이아/마스터에
+     * 복귀하지 못하고 플래티넘까지만 허용된다 — 오직 다음 주간 체크로만 해제된다.
+     */
+    @Column(name = "activity_suppressed", nullable = false, columnDefinition = "boolean default false")
+    private boolean activitySuppressed = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -57,9 +74,14 @@ public class User {
     }
 
     public User(String nickname, String signupChannel, ShareClick referredBy) {
+        this(nickname, signupChannel, referredBy, null);
+    }
+
+    public User(String nickname, String signupChannel, ShareClick referredBy, String kakaoId) {
         this.nickname = nickname;
         this.signupChannel = signupChannel;
         this.referredBy = referredBy;
+        this.kakaoId = kakaoId;
         this.credibilityScore = 0;
         this.tier = Tier.UNRANKED;
     }
@@ -78,6 +100,19 @@ public class User {
         this.tier = newTier;
     }
 
+    public void setActivitySuppressed(boolean activitySuppressed) {
+        this.activitySuppressed = activitySuppressed;
+    }
+
+    /**
+     * 오확정 정정(SettlementCorrectionService) 재생(replay) 전용.
+     * applyScoreDelta는 "기존 점수 + 델타"를 누적하는 반면, 정정은 남은 정산 기록으로
+     * 처음부터 다시 계산한 값을 그대로 덮어써야 하므로 별도 메서드로 분리한다.
+     */
+    public void resetCredibilityScore(int score) {
+        this.credibilityScore = Math.max(0, score);
+    }
+
     public Long getId() {
         return id;
     }
@@ -90,6 +125,10 @@ public class User {
         return signupChannel;
     }
 
+    public String getKakaoId() {
+        return kakaoId;
+    }
+
     public ShareClick getReferredBy() {
         return referredBy;
     }
@@ -100,6 +139,14 @@ public class User {
 
     public Tier getTier() {
         return tier;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public boolean isActivitySuppressed() {
+        return activitySuppressed;
     }
 
     public LocalDateTime getCreatedAt() {

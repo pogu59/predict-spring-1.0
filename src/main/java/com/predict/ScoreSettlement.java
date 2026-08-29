@@ -10,7 +10,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -19,7 +18,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * 점수 정산 결과. votes와 1:1 관계이며 투표 1건당 정산 1건만 존재한다.
+ * 점수 정산 결과. 평소엔 투표 1건당 정산 1건(1:1)이지만, 오확정 정정(SettlementCorrectionService)
+ * 후 재확정되면 같은 투표에 새 정산 기록이 또 생길 수 있어 vote_id는 UNIQUE가 아니다
+ * (schema_8.sql score_settlements.vote_id 주석 참고). 특정 시점에 유효한 정산은
+ * is_reversed=false인 것 하나뿐이라는 게 불변식이다.
  */
 @Getter
 @Entity
@@ -31,8 +33,8 @@ public class ScoreSettlement {
     @Column(name = "settlement_id")
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "vote_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "vote_id", nullable = false)
     private Vote vote;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -65,6 +67,13 @@ public class ScoreSettlement {
     @Column(name = "settled_at", nullable = false, updatable = false)
     private LocalDateTime settledAt;
 
+    /**
+     * 오확정 정정으로 무효화된 기록인지(1=무효). 삭제하지 않고 감사기록으로 보존하며,
+     * 점수 재생(replay) 시 이 값이 true인 기록은 건너뛴다.
+     */
+    @Column(name = "is_reversed", nullable = false, columnDefinition = "boolean default false")
+    private boolean isReversed = false;
+
     protected ScoreSettlement() {
     }
 
@@ -79,6 +88,11 @@ public class ScoreSettlement {
         this.pValue = pValue;
         this.scoreDelta = scoreDelta;
         this.scoreAfter = scoreAfter;
+    }
+
+    /** 오확정 정정 시 호출 — 삭제 대신 무효 표시만 한다. */
+    public void reverse() {
+        this.isReversed = true;
     }
 
 }

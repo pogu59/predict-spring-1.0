@@ -29,4 +29,13 @@ public class UserService {
         }
         return userRepository.save(new User(nickname, signupChannel, referredBy));
     }
+
+    /**
+     * 카카오 로그인. 이미 가입된 카카오 회원번호면 그 유저를 반환하고,
+     * 처음 보는 카카오 회원번호면 새 유저를 만든다(가입+로그인 동시 처리).
+     */
+    public User findOrCreateByKakao(String kakaoId, String nickname) {
+        return userRepository.findByKakaoId(kakaoId)
+                .orElseGet(() -> userRepository.save(new User(nickname, "kakao", null, kakaoId)));
+    }
 }
