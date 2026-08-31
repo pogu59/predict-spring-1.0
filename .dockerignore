@@ -1,0 +1,9 @@
+.git
+.idea
+.gradle
+build
+data
+docs
+schema
+*.md
+src/main/resources/application-local.properties

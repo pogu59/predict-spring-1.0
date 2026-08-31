@@ -38,6 +38,7 @@ out/
 
 ### 로컬 시크릿 (카카오 키 등) ###
 application-local.properties
+.env
 
 ### 로컬 H2 파일 DB ###
 data/
