@@ -34,6 +34,7 @@ public class AdminTopicService {
     @Transactional
     public Topic createTopic(Integer categoryId, String title, String description,
                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> options) {
+        requireFutureVotingWindow(voteStartAt, voteDeadlineAt);
         Category category = requireCategory(categoryId);
         return topicRepository.save(new Topic(category, title, description, voteStartAt, voteDeadlineAt, options));
     }
@@ -48,9 +49,24 @@ public class AdminTopicService {
         if (voteRepository.countByTopicId(topicId) > 0) {
             throw new IllegalStateException("이미 참여자가 있는 주제는 내용을 수정할 수 없습니다. 마감시각 연장만 가능합니다.");
         }
+        requireFutureVotingWindow(voteStartAt, voteDeadlineAt);
 
         Category category = requireCategory(categoryId);
         topic.updateContent(category, title, description, voteStartAt, voteDeadlineAt, options);
+    }
+
+    /** 시작/마감 시각은 현재 시각 이후여야 하고, 마감은 시작보다 늦어야 한다. */
+    private void requireFutureVotingWindow(LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+        LocalDateTime now = LocalDateTime.now();
+        if (voteStartAt.isBefore(now)) {
+            throw new IllegalArgumentException("투표 시작 시각은 현재 시각 이후여야 합니다.");
+        }
+        if (voteDeadlineAt.isBefore(now)) {
+            throw new IllegalArgumentException("마감 시각은 현재 시각 이후여야 합니다.");
+        }
+        if (!voteDeadlineAt.isAfter(voteStartAt)) {
+            throw new IllegalArgumentException("마감 시각은 시작 시각보다 늦어야 합니다.");
+        }
     }
 
     @Transactional
