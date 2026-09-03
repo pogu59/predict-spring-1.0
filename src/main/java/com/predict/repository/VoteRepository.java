@@ -5,10 +5,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface VoteRepository extends JpaRepository<Vote, Long> {
 
     boolean existsByUserIdAndTopicId(Long userId, Long topicId);
+
+    /** 특정 유저가 특정 주제에 투표했는지 + 어떤 선택지였는지. 공개 조회 API에서 본인 노출 판단에 쓴다. */
+    Optional<Vote> findByUserIdAndTopicId(Long userId, Long topicId);
 
     List<Vote> findByTopicId(Long topicId);
 

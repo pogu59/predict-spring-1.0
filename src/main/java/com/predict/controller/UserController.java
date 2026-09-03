@@ -1,5 +1,7 @@
 package com.predict.controller;
 
+import com.predict.Topic;
+import com.predict.TopicOption;
 import com.predict.User;
 import com.predict.controller.dto.LoginSessionResponse;
 import com.predict.controller.dto.MyStatsResponse;
@@ -9,6 +11,7 @@ import com.predict.controller.dto.ShareClickResponse;
 import com.predict.controller.dto.SignupRequest;
 import com.predict.controller.dto.UserResponse;
 import com.predict.enums.SettlementResult;
+import com.predict.enums.TopicStatus;
 import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
@@ -25,7 +28,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -89,8 +94,20 @@ public class UserController {
     public List<MyVoteResponse> votes(@PathVariable Long userId) {
         requireUser(userId);
         return voteRepository.findByUserIdOrderByVotedAtDesc(userId).stream()
-                .map(vote -> MyVoteResponse.from(vote, scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId())))
+                .map(vote -> MyVoteResponse.from(vote,
+                        scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId()),
+                        liveCountsByOptionId(vote.getTopic())))
                 .toList();
+    }
+
+    /** OPEN 상태 주제의 실시간 득표수. TopicOption.voteCount는 마감 전엔 null이라 직접 집계한다. */
+    private Map<Long, Integer> liveCountsByOptionId(Topic topic) {
+        if (topic.getStatus() != TopicStatus.OPEN) return Map.of();
+        Map<Long, Integer> counts = new HashMap<>();
+        for (TopicOption option : topic.getOptions()) {
+            counts.put(option.getId(), (int) voteRepository.countByTopicIdAndTopicOptionId(topic.getId(), option.getId()));
+        }
+        return counts;
     }
 
     private User requireUser(Long userId) {
