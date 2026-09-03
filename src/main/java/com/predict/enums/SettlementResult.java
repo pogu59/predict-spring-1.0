@@ -1,12 +1,11 @@
 package com.predict.enums;
 
 /**
- * score_settlements.result. MySQL ENUM('correct','incorrect','void')과 1:1 대응.
+ * score_settlements.result. MySQL ENUM('correct','incorrect')과 1:1 대응.
  */
 public enum SettlementResult {
     CORRECT("correct"),
-    INCORRECT("incorrect"),
-    VOID("void");
+    INCORRECT("incorrect");
 
     private final String dbValue;
 

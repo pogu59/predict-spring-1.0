@@ -1,7 +1,7 @@
 package com.predict.service;
 
 import com.predict.Topic;
-import com.predict.enums.Choice;
+import com.predict.TopicOption;
 import com.predict.enums.TopicStatus;
 import com.predict.repository.TopicRepository;
 import com.predict.repository.VoteRepository;
@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 투표 마감시각 도달을 자동으로 감지해 결과대기 상태로 전환한다(docs/predict.md 4-1절 흐름도).
@@ -32,9 +34,12 @@ public class TopicLifecycleService {
         LocalDateTime now = LocalDateTime.now();
         List<Topic> expiredTopics = topicRepository.findByStatusAndVoteDeadlineAtLessThanEqual(TopicStatus.OPEN, now);
         for (Topic topic : expiredTopics) {
-            long yesCount = voteRepository.countByTopicIdAndChoice(topic.getId(), Choice.YES);
-            long noCount = voteRepository.countByTopicIdAndChoice(topic.getId(), Choice.NO);
-            topic.closeForResult((int) yesCount, (int) noCount);
+            Map<Long, Integer> voteCountsByOptionId = new HashMap<>();
+            for (TopicOption option : topic.getOptions()) {
+                long count = voteRepository.countByTopicIdAndTopicOptionId(topic.getId(), option.getId());
+                voteCountsByOptionId.put(option.getId(), (int) count);
+            }
+            topic.closeForResult(voteCountsByOptionId);
         }
     }
 }

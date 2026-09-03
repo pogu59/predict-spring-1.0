@@ -4,9 +4,9 @@ import com.predict.Category;
 import com.predict.ScoreSettlement;
 import com.predict.TierChange;
 import com.predict.Topic;
+import com.predict.TopicOption;
 import com.predict.User;
 import com.predict.Vote;
-import com.predict.enums.Choice;
 import com.predict.enums.SettlementResult;
 import com.predict.enums.Tier;
 import com.predict.enums.TierChangeReason;
@@ -25,6 +25,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,17 +56,20 @@ class SettlementCorrectionServiceTest {
     @Test
     void correctTopic_reversesSettlementsAndReplaysScoreToZeroWhenNoneRemain() throws Exception {
         Topic topic = new Topic(category, "테스트", null,
-                LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(1));
-        topic.closeForResult(6, 4);
-        topic.confirm(Choice.YES, LocalDateTime.now(), null);
+                LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(1), List.of("예", "아니오"));
+        TopicOption yesOption = topic.getOptions().get(0);
+        setId(yesOption, 100L);
+        setId(topic.getOptions().get(1), 200L);
+        topic.closeForResult(Map.of(100L, 6, 200L, 4));
+        topic.confirm(yesOption, LocalDateTime.now(), null);
         setId(topic, 1L);
 
         User user = new User("유저", "direct", null);
         setId(user, 10L);
         user.applyScoreDelta(20);
         user.changeTier(Tier.BRONZE);
-        Vote vote = new Vote(user, topic, Choice.YES);
-        ScoreSettlement settlement = new ScoreSettlement(vote, user, topic, Choice.YES,
+        Vote vote = new Vote(user, topic, yesOption);
+        ScoreSettlement settlement = new ScoreSettlement(vote, user, topic, yesOption,
                 SettlementResult.CORRECT, BigDecimal.valueOf(0.55), 20, 20);
 
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
@@ -78,7 +82,7 @@ class SettlementCorrectionServiceTest {
 
         assertThat(settlement.isReversed()).isTrue();
         assertThat(topic.getStatus()).isEqualTo(TopicStatus.PENDING_RESULT);
-        assertThat(topic.getCorrectAnswer()).isNull();
+        assertThat(topic.getCorrectOption()).isNull();
         assertThat(topic.getConfirmedBy()).isNull();
         assertThat(user.getCredibilityScore()).isZero();
 
@@ -89,7 +93,8 @@ class SettlementCorrectionServiceTest {
 
     @Test
     void correctTopic_openTopic_throws() {
-        Topic topic = new Topic(category, "테스트", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1));
+        Topic topic = new Topic(category, "테스트", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1),
+                List.of("예", "아니오"));
         when(topicRepository.findById(2L)).thenReturn(Optional.of(topic));
 
         assertThatThrownBy(() -> correctionService.correctTopic(2L))
@@ -106,5 +111,11 @@ class SettlementCorrectionServiceTest {
         Field field = User.class.getDeclaredField("id");
         field.setAccessible(true);
         field.set(user, id);
+    }
+
+    private void setId(TopicOption option, Long id) throws Exception {
+        Field field = TopicOption.class.getDeclaredField("id");
+        field.setAccessible(true);
+        field.set(option, id);
     }
 }

@@ -43,11 +43,11 @@ public class SettlementCorrectionService {
     public void correctTopic(Long topicId) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주제: " + topicId));
-        if (topic.getStatus() != TopicStatus.CONFIRMED && topic.getStatus() != TopicStatus.VOID) {
+        if (topic.getStatus() != TopicStatus.CONFIRMED) {
             throw new IllegalStateException("이 주제는 아직 확정되지 않아 정정할 수 없습니다.");
         }
 
-        // 영향받은 유저 = 이 주제에 정산 기록이 있던 유저 전원(무효 포함). 정정 후 남은 기록이
+        // 영향받은 유저 = 이 주제에 정산 기록이 있던 유저 전원. 정정 후 남은 기록이
         // 하나도 없는 유저도 0점으로 재계산해야 하므로, User 참조를 여기서 미리 확보해 둔다.
         Map<Long, User> affectedUsers = new LinkedHashMap<>();
         for (ScoreSettlement settlement : scoreSettlementRepository.findByTopicId(topicId)) {

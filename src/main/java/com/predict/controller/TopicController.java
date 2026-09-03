@@ -3,10 +3,10 @@ package com.predict.controller;
 import com.predict.Topic;
 import com.predict.User;
 import com.predict.Vote;
+import com.predict.controller.dto.TopicOptionResponse;
 import com.predict.controller.dto.TopicResponse;
 import com.predict.controller.dto.VoteRequest;
 import com.predict.controller.dto.VoteResponse;
-import com.predict.enums.Choice;
 import com.predict.repository.TopicRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
@@ -57,10 +57,13 @@ public class TopicController {
     @PostMapping("/{topicId}/votes")
     @ResponseStatus(HttpStatus.CREATED)
     public VoteResponse castVote(@PathVariable Long topicId, @Valid @RequestBody VoteRequest request) {
-        Vote vote = voteService.castVote(requireUser(request.userId()), topicId, request.choice());
-        long liveYes = voteRepository.countByTopicIdAndChoice(topicId, Choice.YES);
-        long liveNo = voteRepository.countByTopicIdAndChoice(topicId, Choice.NO);
-        return VoteResponse.of(vote, (int) liveYes, (int) liveNo);
+        Vote vote = voteService.castVote(requireUser(request.userId()), topicId, request.optionId());
+        Topic topic = vote.getTopic();
+        List<TopicOptionResponse> liveCounts = topic.getOptions().stream()
+                .map(option -> new TopicOptionResponse(option.getId(), option.getText(),
+                        (int) voteRepository.countByTopicIdAndTopicOptionId(topicId, option.getId())))
+                .toList();
+        return VoteResponse.of(vote, liveCounts);
     }
 
     private Topic requireTopic(Long topicId) {

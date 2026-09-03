@@ -1,10 +1,10 @@
 package com.predict.controller.dto;
 
 import com.predict.Topic;
-import com.predict.enums.Choice;
 import com.predict.enums.TopicStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record AdminTopicDetailResponse(
         Long id,
@@ -18,9 +18,8 @@ public record AdminTopicDetailResponse(
         LocalDateTime confirmedAt,
         Long confirmedByUserId,
         String confirmedByNickname,
-        Choice correctAnswer,
-        int yesCount,
-        int noCount,
+        Long correctOptionId,
+        List<TopicOptionResponse> options,
         long totalVotes,
         boolean canFullEdit,
         boolean canExtendDeadline,
@@ -40,9 +39,10 @@ public record AdminTopicDetailResponse(
                 topic.getConfirmedAt(),
                 topic.getConfirmedBy() != null ? topic.getConfirmedBy().getId() : null,
                 topic.getConfirmedBy() != null ? topic.getConfirmedBy().getNickname() : null,
-                topic.getCorrectAnswer(),
-                topic.getYesCount(),
-                topic.getNoCount(),
+                topic.getCorrectOption() != null ? topic.getCorrectOption().getId() : null,
+                topic.getOptions().stream()
+                        .map(option -> new TopicOptionResponse(option.getId(), option.getText(), option.getVoteCount()))
+                        .toList(),
                 totalVotes,
                 isOpen && totalVotes == 0,
                 isOpen,

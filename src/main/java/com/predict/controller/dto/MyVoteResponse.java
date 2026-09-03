@@ -2,11 +2,11 @@ package com.predict.controller.dto;
 
 import com.predict.ScoreSettlement;
 import com.predict.Vote;
-import com.predict.enums.Choice;
 import com.predict.enums.SettlementResult;
 import com.predict.enums.TopicStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -20,13 +20,13 @@ public record MyVoteResponse(
         String categoryName,
         String title,
         TopicStatus status,
-        Choice choice,
+        Long optionId,
+        String optionText,
         LocalDateTime votedAt,
         LocalDateTime voteDeadlineAt,
         LocalDateTime confirmedAt,
-        Choice correctAnswer,
-        Integer yesCount,
-        Integer noCount,
+        Long correctOptionId,
+        List<TopicOptionResponse> options,
         SettlementResult result,
         Integer scoreDelta
 ) {
@@ -40,13 +40,16 @@ public record MyVoteResponse(
                 topic.getCategory().getName(),
                 topic.getTitle(),
                 topic.getStatus(),
-                vote.getChoice(),
+                vote.getTopicOption().getId(),
+                vote.getTopicOption().getText(),
                 vote.getVotedAt(),
                 topic.getVoteDeadlineAt(),
                 topic.getConfirmedAt(),
-                topic.getCorrectAnswer(),
-                countsVisible ? topic.getYesCount() : null,
-                countsVisible ? topic.getNoCount() : null,
+                topic.getCorrectOption() != null ? topic.getCorrectOption().getId() : null,
+                topic.getOptions().stream()
+                        .map(option -> new TopicOptionResponse(option.getId(), option.getText(),
+                                countsVisible ? option.getVoteCount() : null))
+                        .toList(),
                 settlement.map(ScoreSettlement::getResult).orElse(null),
                 settlement.map(ScoreSettlement::getScoreDelta).orElse(null));
     }

@@ -1,6 +1,5 @@
 package com.predict;
 
-import com.predict.enums.Choice;
 import com.predict.enums.SettlementResult;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -46,8 +45,9 @@ public class ScoreSettlement {
     private Topic topic;
 
     /** votes에서 복사해 둔 값(조회 편의용) */
-    @Column(name = "choice", nullable = false, length = 10)
-    private Choice choice;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "topic_option_id", nullable = false)
+    private TopicOption topicOption;
 
     @Column(name = "result", nullable = false, length = 10)
     private SettlementResult result;
@@ -77,13 +77,13 @@ public class ScoreSettlement {
     protected ScoreSettlement() {
     }
 
-    public ScoreSettlement(Vote vote, User user, Topic topic, Choice choice,
+    public ScoreSettlement(Vote vote, User user, Topic topic, TopicOption topicOption,
                             SettlementResult result, BigDecimal pValue,
                             int scoreDelta, int scoreAfter) {
         this.vote = vote;
         this.user = user;
         this.topic = topic;
-        this.choice = choice;
+        this.topicOption = topicOption;
         this.result = result;
         this.pValue = pValue;
         this.scoreDelta = scoreDelta;

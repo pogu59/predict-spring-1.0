@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 관리자 페이지의 주제 생성/수정 (docs/predict.md 5-4절, schema_8.sql sp_update_topic /
@@ -32,14 +33,14 @@ public class AdminTopicService {
 
     @Transactional
     public Topic createTopic(Integer categoryId, String title, String description,
-                              LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+                              LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> options) {
         Category category = requireCategory(categoryId);
-        return topicRepository.save(new Topic(category, title, description, voteStartAt, voteDeadlineAt));
+        return topicRepository.save(new Topic(category, title, description, voteStartAt, voteDeadlineAt, options));
     }
 
     @Transactional
     public void updateTopic(Long topicId, Integer categoryId, String title, String description,
-                             LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+                             LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> options) {
         Topic topic = requireTopic(topicId);
         if (topic.getStatus() != TopicStatus.OPEN) {
             throw new IllegalStateException("진행중(open) 상태인 주제만 수정할 수 있습니다.");
@@ -49,7 +50,7 @@ public class AdminTopicService {
         }
 
         Category category = requireCategory(categoryId);
-        topic.updateContent(category, title, description, voteStartAt, voteDeadlineAt);
+        topic.updateContent(category, title, description, voteStartAt, voteDeadlineAt, options);
     }
 
     @Transactional

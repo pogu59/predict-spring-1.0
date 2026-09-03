@@ -1,13 +1,13 @@
 package com.predict.controller.dto;
 
 import com.predict.Topic;
-import com.predict.enums.Choice;
 import com.predict.enums.TopicStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
- * yesCount/noCount는 status가 OPEN이면 null로 감춘다.
+ * 선택지별 득표수는 status가 OPEN이면 null로 감춘다.
  * 마감 전 실시간 득표비율 비공개 원칙(docs/predict.md 2-6절)을 응답 형태로 강제한다.
  */
 public record TopicResponse(
@@ -19,9 +19,8 @@ public record TopicResponse(
         LocalDateTime voteStartAt,
         LocalDateTime voteDeadlineAt,
         LocalDateTime confirmedAt,
-        Choice correctAnswer,
-        Integer yesCount,
-        Integer noCount,
+        Long correctOptionId,
+        List<TopicOptionResponse> options,
         LocalDateTime createdAt
 ) {
     public static TopicResponse from(Topic topic) {
@@ -35,9 +34,11 @@ public record TopicResponse(
                 topic.getVoteStartAt(),
                 topic.getVoteDeadlineAt(),
                 topic.getConfirmedAt(),
-                topic.getCorrectAnswer(),
-                countsVisible ? topic.getYesCount() : null,
-                countsVisible ? topic.getNoCount() : null,
+                topic.getCorrectOption() != null ? topic.getCorrectOption().getId() : null,
+                topic.getOptions().stream()
+                        .map(option -> new TopicOptionResponse(option.getId(), option.getText(),
+                                countsVisible ? option.getVoteCount() : null))
+                        .toList(),
                 topic.getCreatedAt());
     }
 }

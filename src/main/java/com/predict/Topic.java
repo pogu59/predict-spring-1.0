@@ -1,7 +1,7 @@
 package com.predict;
 
-import com.predict.enums.Choice;
 import com.predict.enums.TopicStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,14 +10,19 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 투표 주제. yes_count/no_count는 마감 시점 득표수를 정산용으로 고정해 둔 스냅샷이다.
+ * 투표 주제. 선택지(TopicOption)별 득표수는 마감 시점에 스냅샷으로 고정해 둔다(정산용).
  */
 @Getter
 @Entity
@@ -56,15 +61,14 @@ public class Topic {
     @JoinColumn(name = "confirmed_by")
     private User confirmedBy;
 
-    /** 정답. void 처리된 주제는 끝까지 null로 유지된다. */
-    @Column(name = "correct_answer")
-    private Choice correctAnswer;
+    /** 정답 선택지. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "correct_option_id")
+    private TopicOption correctOption;
 
-    @Column(name = "yes_count", nullable = false)
-    private int yesCount;
-
-    @Column(name = "no_count", nullable = false)
-    private int noCount;
+    @OneToMany(mappedBy = "topic", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC")
+    private List<TopicOption> options = new ArrayList<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -74,37 +78,30 @@ public class Topic {
     }
 
     public Topic(Category category, String title, String description,
-                 LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+                 LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts) {
         this.category = category;
         this.title = title;
         this.description = description;
         this.voteStartAt = voteStartAt;
         this.voteDeadlineAt = voteDeadlineAt;
         this.status = TopicStatus.OPEN;
-        this.yesCount = 0;
-        this.noCount = 0;
+        addOptions(optionTexts);
     }
 
-    /** 마감 시점 득표수를 스냅샷으로 기록하고 결과대기 상태로 전환한다. */
-    public void closeForResult(int yesCount, int noCount) {
-        this.yesCount = yesCount;
-        this.noCount = noCount;
+    /** 마감 시점 득표수를 선택지별 스냅샷으로 기록하고 결과대기 상태로 전환한다. */
+    public void closeForResult(Map<Long, Integer> voteCountsByOptionId) {
+        for (TopicOption option : options) {
+            option.recordVoteCount(voteCountsByOptionId.getOrDefault(option.getId(), 0));
+        }
         this.status = TopicStatus.PENDING_RESULT;
     }
 
     /** 정답을 확정한다. */
-    public void confirm(Choice correctAnswer, LocalDateTime confirmedAt, User confirmedBy) {
-        this.correctAnswer = correctAnswer;
+    public void confirm(TopicOption correctOption, LocalDateTime confirmedAt, User confirmedBy) {
+        this.correctOption = correctOption;
         this.confirmedAt = confirmedAt;
         this.confirmedBy = confirmedBy;
         this.status = TopicStatus.CONFIRMED;
-    }
-
-    /** 무효 처리한다. correct_answer는 채우지 않는다. */
-    public void voidTopic(LocalDateTime confirmedAt, User confirmedBy) {
-        this.confirmedAt = confirmedAt;
-        this.confirmedBy = confirmedBy;
-        this.status = TopicStatus.VOID;
     }
 
     /**
@@ -112,25 +109,34 @@ public class Topic {
      * sp_confirm_topic_result에 해당하는 정산 절차를 올바른 정답으로 재실행할 수 있게 한다.
      */
     public void resetForCorrection() {
-        this.correctAnswer = null;
+        this.correctOption = null;
         this.confirmedAt = null;
         this.confirmedBy = null;
         this.status = TopicStatus.PENDING_RESULT;
     }
 
-    /** 참여자 0명일 때만 허용되는 전체 내용 수정(AdminTopicService). */
+    /** 참여자 0명일 때만 허용되는 전체 내용 수정(AdminTopicService). 선택지도 통째로 교체된다. */
     public void updateContent(Category category, String title, String description,
-                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt) {
+                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts) {
         this.category = category;
         this.title = title;
         this.description = description;
         this.voteStartAt = voteStartAt;
         this.voteDeadlineAt = voteDeadlineAt;
+        this.options.clear();
+        addOptions(optionTexts);
     }
 
     /** 마감시각 연장 전용(AdminTopicService). 단축은 허용하지 않는다(서비스 레이어에서 검증). */
     public void extendDeadline(LocalDateTime newDeadline) {
         this.voteDeadlineAt = newDeadline;
+    }
+
+    private void addOptions(List<String> optionTexts) {
+        int order = 0;
+        for (String text : optionTexts) {
+            this.options.add(new TopicOption(this, text, order++));
+        }
     }
 
 }

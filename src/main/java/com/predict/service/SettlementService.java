@@ -3,9 +3,9 @@ package com.predict.service;
 import com.predict.ScoreSettlement;
 import com.predict.TierChange;
 import com.predict.Topic;
+import com.predict.TopicOption;
 import com.predict.User;
 import com.predict.Vote;
-import com.predict.enums.Choice;
 import com.predict.enums.SettlementResult;
 import com.predict.enums.Tier;
 import com.predict.enums.TierChangeReason;
@@ -21,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 결과 확정 & 점수 정산 (docs/predict.md 4-1절).
@@ -46,37 +45,31 @@ public class SettlementService {
     }
 
     @Transactional
-    public void confirmTopic(Long topicId, Choice correctAnswer, User admin) {
+    public void confirmTopic(Long topicId, Long correctOptionId, User admin) {
         Topic topic = requirePendingTopic(topicId);
-        topic.confirm(correctAnswer, LocalDateTime.now(), admin);
+        TopicOption correctOption = requireOption(topic, correctOptionId);
+        topic.confirm(correctOption, LocalDateTime.now(), admin);
 
-        int totalVotes = topic.getYesCount() + topic.getNoCount();
+        int optionCount = topic.getOptions().size();
+        int totalVotes = topic.getOptions().stream()
+                .mapToInt(option -> voteCountOf(option))
+                .sum();
+
         for (Vote vote : voteRepository.findByTopicId(topicId)) {
-            BigDecimal p = computeP(topic, vote, totalVotes);
-            boolean correct = vote.getChoice() == correctAnswer;
-            int scoreDelta = correct ? ScoringPolicy.correctScore(p) : ScoringPolicy.incorrectScore(p);
+            TopicOption chosen = vote.getTopicOption();
+            BigDecimal p = ScoringPolicy.computeP(voteCountOf(chosen), totalVotes, optionCount);
+            boolean correct = chosen.getId().equals(correctOption.getId());
+            int scoreDelta = correct
+                    ? ScoringPolicy.correctScore(p, optionCount)
+                    : ScoringPolicy.incorrectScore(p, optionCount);
 
             User user = vote.getUser();
             int scoreAfter = user.applyScoreDelta(scoreDelta);
 
-            scoreSettlementRepository.save(new ScoreSettlement(vote, user, topic, vote.getChoice(),
+            scoreSettlementRepository.save(new ScoreSettlement(vote, user, topic, chosen,
                     correct ? SettlementResult.CORRECT : SettlementResult.INCORRECT, p, scoreDelta, scoreAfter));
 
             applyNaturalTierChange(user, scoreAfter);
-        }
-    }
-
-    @Transactional
-    public void voidTopic(Long topicId, User admin) {
-        Topic topic = requirePendingTopic(topicId);
-        topic.voidTopic(LocalDateTime.now(), admin);
-
-        int totalVotes = topic.getYesCount() + topic.getNoCount();
-        for (Vote vote : voteRepository.findByTopicId(topicId)) {
-            BigDecimal p = computeP(topic, vote, totalVotes);
-            User user = vote.getUser();
-            scoreSettlementRepository.save(new ScoreSettlement(vote, user, topic, vote.getChoice(),
-                    SettlementResult.VOID, p, 0, user.getCredibilityScore()));
         }
     }
 
@@ -89,9 +82,15 @@ public class SettlementService {
         return topic;
     }
 
-    private BigDecimal computeP(Topic topic, Vote vote, int totalVotes) {
-        int chosenSideVotes = vote.getChoice() == Choice.YES ? topic.getYesCount() : topic.getNoCount();
-        return ScoringPolicy.computeP(chosenSideVotes, totalVotes);
+    private TopicOption requireOption(Topic topic, Long optionId) {
+        return topic.getOptions().stream()
+                .filter(option -> option.getId().equals(optionId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("이 주제에 속하지 않는 선택지입니다: " + optionId));
+    }
+
+    private int voteCountOf(TopicOption option) {
+        return option.getVoteCount() == null ? 0 : option.getVoteCount();
     }
 
     private void applyNaturalTierChange(User user, int scoreAfter) {

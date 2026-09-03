@@ -1,13 +1,12 @@
 package com.predict.enums;
 
 /**
- * topics.status. MySQL ENUM('open','pending_result','confirmed','void')과 1:1 대응.
+ * topics.status. MySQL ENUM('open','pending_result','confirmed')과 1:1 대응.
  */
 public enum TopicStatus {
     OPEN("open"),
     PENDING_RESULT("pending_result"),
-    CONFIRMED("confirmed"),
-    VOID("void");
+    CONFIRMED("confirmed");
 
     private final String dbValue;
 

@@ -62,7 +62,7 @@ public class AdminTopicController {
                                             @Valid @RequestBody TopicCreateRequest request) {
         currentUserService.requireAdmin(authorization);
         Topic topic = adminTopicService.createTopic(request.categoryId(), request.title(),
-                request.description(), request.voteStartAt(), request.voteDeadlineAt());
+                request.description(), request.voteStartAt(), request.voteDeadlineAt(), request.options());
         return toDetail(topic);
     }
 
@@ -88,13 +88,9 @@ public class AdminTopicController {
     @PostMapping("/{topicId}/confirm")
     public AdminTopicDetailResponse confirm(@RequestHeader("Authorization") String authorization,
                                              @PathVariable Long topicId,
-                                             @RequestBody TopicConfirmRequest request) {
+                                             @Valid @RequestBody TopicConfirmRequest request) {
         User admin = currentUserService.requireAdmin(authorization);
-        if (request.correctAnswer() == null) {
-            settlementService.voidTopic(topicId, admin);
-        } else {
-            settlementService.confirmTopic(topicId, request.correctAnswer(), admin);
-        }
+        settlementService.confirmTopic(topicId, request.correctOptionId(), admin);
         return toDetail(requireTopic(topicId));
     }
 
@@ -112,7 +108,7 @@ public class AdminTopicController {
                                             @Valid @RequestBody TopicCreateRequest request) {
         currentUserService.requireAdmin(authorization);
         adminTopicService.updateTopic(topicId, request.categoryId(), request.title(),
-                request.description(), request.voteStartAt(), request.voteDeadlineAt());
+                request.description(), request.voteStartAt(), request.voteDeadlineAt(), request.options());
         return toDetail(requireTopic(topicId));
     }
 

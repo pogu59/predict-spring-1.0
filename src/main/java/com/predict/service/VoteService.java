@@ -1,9 +1,9 @@
 package com.predict.service;
 
 import com.predict.Topic;
+import com.predict.TopicOption;
 import com.predict.User;
 import com.predict.Vote;
-import com.predict.enums.Choice;
 import com.predict.enums.TopicStatus;
 import com.predict.repository.TopicRepository;
 import com.predict.repository.VoteRepository;
@@ -24,7 +24,7 @@ public class VoteService {
     }
 
     @Transactional
-    public Vote castVote(User user, Long topicId, Choice choice) {
+    public Vote castVote(User user, Long topicId, Long topicOptionId) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주제: " + topicId));
 
@@ -38,7 +38,15 @@ public class VoteService {
         if (voteRepository.existsByUserIdAndTopicId(user.getId(), topicId)) {
             throw new IllegalStateException("이미 투표한 주제입니다.");
         }
+        TopicOption option = requireOption(topic, topicOptionId);
 
-        return voteRepository.save(new Vote(user, topic, choice));
+        return voteRepository.save(new Vote(user, topic, option));
+    }
+
+    private TopicOption requireOption(Topic topic, Long topicOptionId) {
+        return topic.getOptions().stream()
+                .filter(option -> option.getId().equals(topicOptionId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("이 주제에 속하지 않는 선택지입니다: " + topicOptionId));
     }
 }

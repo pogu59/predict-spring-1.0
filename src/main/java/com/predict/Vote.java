@@ -1,6 +1,5 @@
 package com.predict;
 
-import com.predict.enums.Choice;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -38,8 +37,9 @@ public class Vote {
     @JoinColumn(name = "topic_id", nullable = false)
     private Topic topic;
 
-    @Column(name = "choice", nullable = false, length = 10)
-    private Choice choice;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "topic_option_id", nullable = false)
+    private TopicOption topicOption;
 
     @CreationTimestamp
     @Column(name = "voted_at", nullable = false, updatable = false)
@@ -48,10 +48,10 @@ public class Vote {
     protected Vote() {
     }
 
-    public Vote(User user, Topic topic, Choice choice) {
+    public Vote(User user, Topic topic, TopicOption topicOption) {
         this.user = user;
         this.topic = topic;
-        this.choice = choice;
+        this.topicOption = topicOption;
     }
 
 }
