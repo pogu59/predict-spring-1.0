@@ -2,6 +2,7 @@ package com.predict;
 
 import com.predict.enums.Role;
 import com.predict.enums.Tier;
+import com.predict.tier.TierPolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,6 +22,14 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "users")
 public class User {
+
+    /**
+     * 신규 유저에게 기본으로 지급되는 신용도. 이슈 투표가 이제 이 점수를 베팅하는 방식이라
+     * (VoteService.castVote 참고) 0으로 시작하면 아무것도 걸 수 없어 100을 시드로 준다.
+     * 100은 티어 구간표(3-1절)상 실버 문턱이라, 신규 유저는 언랭크/브론즈를 건너뛰고
+     * 바로 실버로 시작한다 — 의도된 동작이다.
+     */
+    public static final int STARTING_CREDIBILITY_SCORE = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -82,8 +91,8 @@ public class User {
         this.signupChannel = signupChannel;
         this.referredBy = referredBy;
         this.kakaoId = kakaoId;
-        this.credibilityScore = 0;
-        this.tier = Tier.UNRANKED;
+        this.credibilityScore = STARTING_CREDIBILITY_SCORE;
+        this.tier = TierPolicy.fromScore(STARTING_CREDIBILITY_SCORE);
     }
 
     /**

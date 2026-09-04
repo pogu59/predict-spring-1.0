@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
 
-public record TopicCreateRequest(
+public record IssueCreateRequest(
         @NotNull Integer categoryId,
         @NotBlank String title,
         String description,

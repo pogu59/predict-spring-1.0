@@ -53,7 +53,7 @@ class UserControllerTest {
         UserResponse response = userController.signup(new SignupRequest("닉네임", "direct", null));
 
         assertThat(response.nickname()).isEqualTo("닉네임");
-        assertThat(response.credibilityScore()).isZero();
+        assertThat(response.credibilityScore()).isEqualTo(User.STARTING_CREDIBILITY_SCORE);
     }
 
     @Test

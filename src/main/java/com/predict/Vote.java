@@ -16,12 +16,12 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 투표 참여 기록. 유저당 주제 1표만 허용된다(uq_votes_user_topic).
+ * 투표 참여 기록. 유저당 주제 1표만 허용된다(uq_votes_user_issue).
  */
 @Getter
 @Entity
 @Table(name = "votes",
-        uniqueConstraints = @UniqueConstraint(name = "uq_votes_user_topic", columnNames = {"user_id", "topic_id"}))
+        uniqueConstraints = @UniqueConstraint(name = "uq_votes_user_issue", columnNames = {"user_id", "issue_id"}))
 public class Vote {
 
     @Id
@@ -34,12 +34,20 @@ public class Vote {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "topic_id", nullable = false)
-    private Topic topic;
+    @JoinColumn(name = "issue_id", nullable = false)
+    private Issue issue;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "topic_option_id", nullable = false)
-    private TopicOption topicOption;
+    @JoinColumn(name = "issue_option_id", nullable = false)
+    private IssueOption issueOption;
+
+    /**
+     * 이 투표에 건 신용도. 투표 시점에 유저 잔액에서 즉시 차감(에스크로)되고,
+     * 정산 시점에 stake + scoreDelta(정답)/stake + scoreDelta(오답, delta가 음수)만큼
+     * 돌려받는다 — VoteService.castVote / SettlementService.confirmIssue 참고.
+     */
+    @Column(name = "stake", nullable = false)
+    private int stake;
 
     @CreationTimestamp
     @Column(name = "voted_at", nullable = false, updatable = false)
@@ -48,10 +56,11 @@ public class Vote {
     protected Vote() {
     }
 
-    public Vote(User user, Topic topic, TopicOption topicOption) {
+    public Vote(User user, Issue issue, IssueOption issueOption, int stake) {
         this.user = user;
-        this.topic = topic;
-        this.topicOption = topicOption;
+        this.issue = issue;
+        this.issueOption = issueOption;
+        this.stake = stake;
     }
 
 }

@@ -20,19 +20,39 @@ class ScoringPolicyTest {
     void fiftyFifty_twoOptions_matchesDocTableExactly() {
         BigDecimal p = new BigDecimal("0.5000");
 
-        assertThat(ScoringPolicy.correctScore(p, 2)).isEqualTo(22);
-        assertThat(ScoringPolicy.incorrectScore(p, 2)).isEqualTo(-18);
+        assertThat(ScoringPolicy.correctScore(p, 2, 100)).isEqualTo(22);
+        assertThat(ScoringPolicy.incorrectScore(p, 2, 100)).isEqualTo(-18);
     }
 
     @Test
     void correctAndIncorrect_twoOptions_areAntisymmetricAroundZero() {
         BigDecimal p = new BigDecimal("0.7000");
 
-        int correct = ScoringPolicy.correctScore(p, 2);
-        int incorrect = ScoringPolicy.incorrectScore(p, 2);
+        int correct = ScoringPolicy.correctScore(p, 2, 100);
+        int incorrect = ScoringPolicy.incorrectScore(p, 2, 100);
 
         assertThat(correct).isPositive();
         assertThat(incorrect).isNegative();
+    }
+
+    @Test
+    void score_scalesLinearlyWithStake() {
+        BigDecimal p = new BigDecimal("0.5000");
+
+        assertThat(ScoringPolicy.correctScore(p, 2, 50)).isEqualTo(11); // 22의 절반
+        assertThat(ScoringPolicy.incorrectScore(p, 2, 50)).isEqualTo(-9); // -18의 절반
+    }
+
+    @Test
+    void incorrectScore_neverLosesMoreThanFortyPercentOfStake() {
+        // p가 1에 가까울수록(극단적 확신에 틀림) 손실이 최대인데, 이때도 스테이크의 40%를 넘지 않는다
+        // -> 오답이어도 최소 60%는 항상 남는다(잔액이 음수가 될 수 없는 이유).
+        BigDecimal p = new BigDecimal("0.9999");
+        int stake = 1000;
+
+        int loss = -ScoringPolicy.incorrectScore(p, 2, stake);
+
+        assertThat(loss).isLessThanOrEqualTo((int) Math.round(stake * 0.4));
     }
 
     @Test

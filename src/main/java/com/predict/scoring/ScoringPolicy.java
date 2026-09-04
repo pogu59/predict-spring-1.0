@@ -37,15 +37,25 @@ public final class ScoringPolicy {
         return 2 * (1 - k * Math.pow(pd - center, 2));
     }
 
-    /** 정답 시: round(40x(1-p) + bonus(p)) */
-    public static int correctScore(BigDecimal p, int optionCount) {
+    /**
+     * 정답 시: round(stake x [40x(1-p) + bonus(p)] / 100).
+     * 원래 공식(문서 2-3절)은 "베팅액 100"을 가정한 결과이므로, 베팅액에 비례해 스케일링한다
+     * — stake=100이면 기존 공식과 정확히 같은 값이 나온다.
+     */
+    public static int correctScore(BigDecimal p, int optionCount, int stake) {
         double pd = p.doubleValue();
-        return (int) Math.round(POINT_SCALE * (1 - pd) + bonus(p, optionCount));
+        double raw = POINT_SCALE * (1 - pd) + bonus(p, optionCount);
+        return (int) Math.round(raw * stake / 100.0);
     }
 
-    /** 오답 시: round(-(40xp - bonus(p))) */
-    public static int incorrectScore(BigDecimal p, int optionCount) {
+    /**
+     * 오답 시: round(-stake x [40xp - bonus(p)] / 100).
+     * raw의 최대 크기가 40(포인트 스케일)을 넘지 않도록 설계돼 있어(p<=1, bonus>=0),
+     * 이 값의 크기는 항상 stake의 40%를 넘지 않는다 — 오답이어도 베팅액을 전부 잃지는 않는다.
+     */
+    public static int incorrectScore(BigDecimal p, int optionCount, int stake) {
         double pd = p.doubleValue();
-        return (int) Math.round(-(POINT_SCALE * pd - bonus(p, optionCount)));
+        double raw = -(POINT_SCALE * pd - bonus(p, optionCount));
+        return (int) Math.round(raw * stake / 100.0);
     }
 }

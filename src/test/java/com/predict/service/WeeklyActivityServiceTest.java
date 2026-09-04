@@ -55,7 +55,7 @@ class WeeklyActivityServiceTest {
     void belowThreshold_demotesDisplayTierOnly() throws Exception {
         User user = new User("다이아유저", "direct", null);
         setId(user, 1L);
-        user.applyScoreDelta(420); // 다이아 구간
+        user.resetCredibilityScore(420); // 다이아 구간
         user.changeTier(Tier.DIAMOND); // 지난주까지는 정상적으로 다이아였던 상태
         when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))
@@ -79,7 +79,7 @@ class WeeklyActivityServiceTest {
     void meetsThreshold_restoresPointTier() throws Exception {
         User user = new User("복귀유저", "direct", null);
         setId(user, 2L);
-        user.applyScoreDelta(420);
+        user.resetCredibilityScore(420);
         user.changeTier(Tier.PLATINUM); // 지난주 활동성 강등되어 있던 상태
         when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))
@@ -97,7 +97,7 @@ class WeeklyActivityServiceTest {
     void alreadyMatchingPointTier_noTierChangeRecorded() throws Exception {
         User user = new User("정상유저", "direct", null);
         setId(user, 3L);
-        user.applyScoreDelta(420);
+        user.resetCredibilityScore(420);
         user.changeTier(Tier.DIAMOND); // 이미 점수 티어와 일치하는 상태
         when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))

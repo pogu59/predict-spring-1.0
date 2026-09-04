@@ -12,21 +12,21 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 
 /**
- * 주제(Topic)의 선택지. 관리자가 등록 시 텍스트로 직접 입력하며 개수 제한은 없다(최소 2개).
+ * 주제(Issue)의 선택지. 관리자가 등록 시 텍스트로 직접 입력하며 개수 제한은 없다(최소 2개).
  */
 @Getter
 @Entity
-@Table(name = "topic_options")
-public class TopicOption {
+@Table(name = "issue_options")
+public class IssueOption {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "topic_option_id")
+    @Column(name = "issue_option_id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "topic_id", nullable = false)
-    private Topic topic;
+    @JoinColumn(name = "issue_id", nullable = false)
+    private Issue issue;
 
     @Column(name = "text", nullable = false, length = 255)
     private String text;
@@ -38,11 +38,11 @@ public class TopicOption {
     @Column(name = "vote_count")
     private Integer voteCount;
 
-    protected TopicOption() {
+    protected IssueOption() {
     }
 
-    public TopicOption(Topic topic, String text, int displayOrder) {
-        this.topic = topic;
+    public IssueOption(Issue issue, String text, int displayOrder) {
+        this.issue = issue;
         this.text = text;
         this.displayOrder = displayOrder;
     }

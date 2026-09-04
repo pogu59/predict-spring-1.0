@@ -1,7 +1,7 @@
 package com.predict.controller;
 
-import com.predict.Topic;
-import com.predict.TopicOption;
+import com.predict.Issue;
+import com.predict.IssueOption;
 import com.predict.User;
 import com.predict.controller.dto.LoginSessionResponse;
 import com.predict.controller.dto.MyStatsResponse;
@@ -11,7 +11,7 @@ import com.predict.controller.dto.ShareClickResponse;
 import com.predict.controller.dto.SignupRequest;
 import com.predict.controller.dto.UserResponse;
 import com.predict.enums.SettlementResult;
-import com.predict.enums.TopicStatus;
+import com.predict.enums.IssueStatus;
 import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
@@ -96,16 +96,16 @@ public class UserController {
         return voteRepository.findByUserIdOrderByVotedAtDesc(userId).stream()
                 .map(vote -> MyVoteResponse.from(vote,
                         scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId()),
-                        liveCountsByOptionId(vote.getTopic())))
+                        liveCountsByOptionId(vote.getIssue())))
                 .toList();
     }
 
-    /** OPEN 상태 주제의 실시간 득표수. TopicOption.voteCount는 마감 전엔 null이라 직접 집계한다. */
-    private Map<Long, Integer> liveCountsByOptionId(Topic topic) {
-        if (topic.getStatus() != TopicStatus.OPEN) return Map.of();
+    /** OPEN 상태 주제의 실시간 득표수. IssueOption.voteCount는 마감 전엔 null이라 직접 집계한다. */
+    private Map<Long, Integer> liveCountsByOptionId(Issue issue) {
+        if (issue.getStatus() != IssueStatus.OPEN) return Map.of();
         Map<Long, Integer> counts = new HashMap<>();
-        for (TopicOption option : topic.getOptions()) {
-            counts.put(option.getId(), (int) voteRepository.countByTopicIdAndTopicOptionId(topic.getId(), option.getId()));
+        for (IssueOption option : issue.getOptions()) {
+            counts.put(option.getId(), (int) voteRepository.countByIssueIdAndIssueOptionId(issue.getId(), option.getId()));
         }
         return counts;
     }

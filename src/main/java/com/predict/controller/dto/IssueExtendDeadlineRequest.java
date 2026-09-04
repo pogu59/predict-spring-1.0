@@ -4,5 +4,5 @@ import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 
-public record TopicExtendDeadlineRequest(@NotNull LocalDateTime newDeadline) {
+public record IssueExtendDeadlineRequest(@NotNull LocalDateTime newDeadline) {
 }

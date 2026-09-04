@@ -14,10 +14,10 @@ public interface ScoreSettlementRepository extends JpaRepository<ScoreSettlement
     Optional<ScoreSettlement> findByVoteIdAndIsReversedFalse(Long voteId);
 
     /** 오확정 정정 시 이 주제와 관련된 모든 정산 기록(무효 포함)에서 영향받은 유저를 찾는 용도. */
-    List<ScoreSettlement> findByTopicId(Long topicId);
+    List<ScoreSettlement> findByIssueId(Long issueId);
 
     /** 오확정 정정 1단계: 이 주제의 아직 무효화되지 않은 정산 기록만 골라 reverse() 처리. */
-    List<ScoreSettlement> findByTopicIdAndIsReversedFalse(Long topicId);
+    List<ScoreSettlement> findByIssueIdAndIsReversedFalse(Long issueId);
 
     /** 오확정 정정 3단계: 유저 점수를 처음부터 시간순으로 재생(replay)하기 위한 조회. */
     List<ScoreSettlement> findByUserIdAndIsReversedFalseOrderBySettledAtAscIdAsc(Long userId);

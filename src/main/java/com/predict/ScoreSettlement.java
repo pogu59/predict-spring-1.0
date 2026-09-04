@@ -41,13 +41,13 @@ public class ScoreSettlement {
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "topic_id", nullable = false)
-    private Topic topic;
+    @JoinColumn(name = "issue_id", nullable = false)
+    private Issue issue;
 
     /** votes에서 복사해 둔 값(조회 편의용) */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "topic_option_id", nullable = false)
-    private TopicOption topicOption;
+    @JoinColumn(name = "issue_option_id", nullable = false)
+    private IssueOption issueOption;
 
     @Column(name = "result", nullable = false, length = 10)
     private SettlementResult result;
@@ -77,13 +77,13 @@ public class ScoreSettlement {
     protected ScoreSettlement() {
     }
 
-    public ScoreSettlement(Vote vote, User user, Topic topic, TopicOption topicOption,
+    public ScoreSettlement(Vote vote, User user, Issue issue, IssueOption issueOption,
                             SettlementResult result, BigDecimal pValue,
                             int scoreDelta, int scoreAfter) {
         this.vote = vote;
         this.user = user;
-        this.topic = topic;
-        this.topicOption = topicOption;
+        this.issue = issue;
+        this.issueOption = issueOption;
         this.result = result;
         this.pValue = pValue;
         this.scoreDelta = scoreDelta;

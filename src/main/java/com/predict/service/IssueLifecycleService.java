@@ -1,9 +1,9 @@
 package com.predict.service;
 
-import com.predict.Topic;
-import com.predict.TopicOption;
-import com.predict.enums.TopicStatus;
-import com.predict.repository.TopicRepository;
+import com.predict.Issue;
+import com.predict.IssueOption;
+import com.predict.enums.IssueStatus;
+import com.predict.repository.IssueRepository;
 import com.predict.repository.VoteRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -18,28 +18,28 @@ import java.util.Map;
  * 투표 마감시각 도달을 자동으로 감지해 결과대기 상태로 전환한다(docs/predict.md 4-1절 흐름도).
  */
 @Service
-public class TopicLifecycleService {
+public class IssueLifecycleService {
 
-    private final TopicRepository topicRepository;
+    private final IssueRepository issueRepository;
     private final VoteRepository voteRepository;
 
-    public TopicLifecycleService(TopicRepository topicRepository, VoteRepository voteRepository) {
-        this.topicRepository = topicRepository;
+    public IssueLifecycleService(IssueRepository issueRepository, VoteRepository voteRepository) {
+        this.issueRepository = issueRepository;
         this.voteRepository = voteRepository;
     }
 
     @Scheduled(fixedRate = 60_000)
     @Transactional
-    public void closeExpiredTopics() {
+    public void closeExpiredIssues() {
         LocalDateTime now = LocalDateTime.now();
-        List<Topic> expiredTopics = topicRepository.findByStatusAndVoteDeadlineAtLessThanEqual(TopicStatus.OPEN, now);
-        for (Topic topic : expiredTopics) {
+        List<Issue> expiredIssues = issueRepository.findByStatusAndVoteDeadlineAtLessThanEqual(IssueStatus.OPEN, now);
+        for (Issue issue : expiredIssues) {
             Map<Long, Integer> voteCountsByOptionId = new HashMap<>();
-            for (TopicOption option : topic.getOptions()) {
-                long count = voteRepository.countByTopicIdAndTopicOptionId(topic.getId(), option.getId());
+            for (IssueOption option : issue.getOptions()) {
+                long count = voteRepository.countByIssueIdAndIssueOptionId(issue.getId(), option.getId());
                 voteCountsByOptionId.put(option.getId(), (int) count);
             }
-            topic.closeForResult(voteCountsByOptionId);
+            issue.closeForResult(voteCountsByOptionId);
         }
     }
 }

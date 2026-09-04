@@ -3,8 +3,8 @@ package com.predict.service;
 import com.predict.Category;
 import com.predict.ScoreSettlement;
 import com.predict.TierChange;
-import com.predict.Topic;
-import com.predict.TopicOption;
+import com.predict.Issue;
+import com.predict.IssueOption;
 import com.predict.User;
 import com.predict.Vote;
 import com.predict.enums.SettlementResult;
@@ -12,7 +12,7 @@ import com.predict.enums.Tier;
 import com.predict.enums.TierChangeReason;
 import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.TierChangeRepository;
-import com.predict.repository.TopicRepository;
+import com.predict.repository.IssueRepository;
 import com.predict.repository.VoteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,7 +35,7 @@ import static org.mockito.Mockito.when;
 class SettlementServiceTest {
 
     @Mock
-    private TopicRepository topicRepository;
+    private IssueRepository issueRepository;
     @Mock
     private VoteRepository voteRepository;
     @Mock
@@ -46,33 +44,35 @@ class SettlementServiceTest {
     private TierChangeRepository tierChangeRepository;
 
     private SettlementService settlementService;
-    private Topic topic;
-    private TopicOption yesOption;
-    private TopicOption noOption;
+    private Issue issue;
+    private IssueOption yesOption;
+    private IssueOption noOption;
 
     @BeforeEach
     void setUp() throws Exception {
-        settlementService = new SettlementService(topicRepository, voteRepository,
+        settlementService = new SettlementService(issueRepository, voteRepository,
                 scoreSettlementRepository, tierChangeRepository);
 
         Category category = new Category(1, "정치");
-        topic = new Topic(category, "테스트 주제", null,
+        issue = new Issue(category, "테스트 주제", null,
                 LocalDateTime.now().minusDays(2), LocalDateTime.now().minusHours(1), List.of("예", "아니오"));
-        yesOption = topic.getOptions().get(0);
-        noOption = topic.getOptions().get(1);
+        yesOption = issue.getOptions().get(0);
+        noOption = issue.getOptions().get(1);
         setId(yesOption, 100L);
         setId(noOption, 200L);
-        topic.closeForResult(Map.of(100L, 6, 200L, 4)); // 참여자 10명, p(다수)=0.55, p(소수)=0.45
-        when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
+        issue.closeForResult(Map.of(100L, 6, 200L, 4)); // 참여자 10명, p(다수)=0.55, p(소수)=0.45
+        when(issueRepository.findById(1L)).thenReturn(Optional.of(issue));
     }
 
     @Test
-    void confirmTopic_correctVoter_gainsScoreAndSettlementRecordsCorrect() {
-        User user = new User("정답자", "direct", null);
-        Vote vote = new Vote(user, topic, yesOption);
-        when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
+    void confirmIssue_correctVoter_gainsScoreAndSettlementRecordsCorrect() {
+        User user = new User("정답자", "direct", null); // 100점(STARTING_CREDIBILITY_SCORE)으로 시작
+        int stake = 100;
+        Vote vote = new Vote(user, issue, yesOption, stake);
+        user.applyScoreDelta(-stake); // VoteService.castVote가 하는 에스크로를 재현 -> 0점
+        when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, 100L, null);
+        settlementService.confirmIssue(1L, 100L, null);
 
         ArgumentCaptor<ScoreSettlement> captor = ArgumentCaptor.forClass(ScoreSettlement.class);
         verify(scoreSettlementRepository).save(captor.capture());
@@ -80,32 +80,37 @@ class SettlementServiceTest {
 
         assertThat(saved.getResult()).isEqualTo(SettlementResult.CORRECT);
         assertThat(saved.getScoreDelta()).isPositive();
-        assertThat(user.getCredibilityScore()).isEqualTo(saved.getScoreDelta());
-        assertThat(topic.getCorrectOption()).isEqualTo(yesOption);
+        // 에스크로로 0점이 된 상태에서 정산 크레딧(stake + scoreDelta)만큼 돌려받는다.
+        assertThat(user.getCredibilityScore()).isEqualTo(stake + saved.getScoreDelta());
+        assertThat(issue.getCorrectOption()).isEqualTo(yesOption);
     }
 
     @Test
-    void confirmTopic_incorrectVoter_losesScoreButFloorsAtZero() {
+    void confirmIssue_incorrectVoter_losesPartOfStakeButNeverGoesNegative() {
         User user = new User("오답자", "direct", null);
-        Vote vote = new Vote(user, topic, noOption);
-        when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
+        int stake = 100;
+        Vote vote = new Vote(user, issue, noOption, stake);
+        user.applyScoreDelta(-stake); // 에스크로 -> 0점
+        when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, 100L, null);
+        settlementService.confirmIssue(1L, 100L, null);
 
-        assertThat(user.getCredibilityScore()).isZero();
-        verify(tierChangeRepository, never()).save(any());
+        // 오답 손실은 베팅액의 40%를 넘지 않도록 설계돼 있어(ScoringPolicy), 정산 크레딧
+        // (stake + scoreDelta)은 항상 양수다 — 베팅 도입 전엔 "0으로 플로어"됐던 지점이지만,
+        // 지금은 손실이 스테이크 안에서만 발생해 그 상황 자체가 구조적으로 없어졌다.
+        assertThat(user.getCredibilityScore()).isPositive();
     }
 
     @Test
-    void confirmTopic_scoreCrossingTierBoundary_recordsNaturalPromotion() {
+    void confirmIssue_scoreCrossingTierBoundary_recordsNaturalPromotion() {
         User user = new User("승급자", "direct", null);
-        // 이전 정산에서 이미 브론즈로 동기화되어 있던 상태(90점, 실버(100) 문턱 바로 아래)를 재현
-        user.applyScoreDelta(90);
+        // 정산 직전 잔액이 이미 브론즈로 동기화되어 있던 상태(90점, 실버(100) 문턱 바로 아래)를 재현
+        user.resetCredibilityScore(90);
         user.changeTier(Tier.BRONZE);
-        Vote vote = new Vote(user, topic, yesOption); // 정답, 다수(p=0.55) -> 대략 +18점
-        when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
+        Vote vote = new Vote(user, issue, yesOption, 100); // 정답, 다수(p=0.55) -> 대략 +18점 크레딧
+        when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, 100L, null);
+        settlementService.confirmIssue(1L, 100L, null);
 
         ArgumentCaptor<TierChange> captor = ArgumentCaptor.forClass(TierChange.class);
         verify(tierChangeRepository).save(captor.capture());
@@ -117,22 +122,22 @@ class SettlementServiceTest {
     }
 
     @Test
-    void confirmTopic_activitySuppressedUser_neverRecalculatedAboveDiamondEvenIfScoreQualifies() {
+    void confirmIssue_activitySuppressedUser_neverRecalculatedAboveDiamondEvenIfScoreQualifies() {
         User user = new User("활동성강등유저", "direct", null);
-        user.applyScoreDelta(485); // 다이아 구간, 마스터(500) 문턱 바로 아래
+        user.resetCredibilityScore(485); // 다이아 구간, 마스터(500) 문턱 바로 아래
         user.changeTier(Tier.DIAMOND);
         user.setActivitySuppressed(true); // 지난주 활동성 체크 미달로 강등 상태
-        Vote vote = new Vote(user, topic, yesOption); // 정답, 다수(p=0.55) -> 대략 +18점 -> 503점(마스터 구간)
-        when(voteRepository.findByTopicId(1L)).thenReturn(List.of(vote));
+        Vote vote = new Vote(user, issue, yesOption, 100); // 정답, 다수(p=0.55) -> 대략 +18점 크레딧 -> 500점 이상(마스터 구간)
+        when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
-        settlementService.confirmTopic(1L, 100L, null);
+        settlementService.confirmIssue(1L, 100L, null);
 
         assertThat(user.getCredibilityScore()).isGreaterThanOrEqualTo(500);
         assertThat(user.getTier()).isEqualTo(Tier.PLATINUM); // 점수는 마스터 구간이어도 강등 상태라 플래티넘 캡
     }
 
-    private void setId(TopicOption option, Long id) throws Exception {
-        Field field = TopicOption.class.getDeclaredField("id");
+    private void setId(IssueOption option, Long id) throws Exception {
+        Field field = IssueOption.class.getDeclaredField("id");
         field.setAccessible(true);
         field.set(option, id);
     }
