@@ -10,7 +10,6 @@ import java.util.List;
  * likedByMe는 Authorization 헤더가 있을 때만 채워진다(없으면 false).
  * authorOptionId: 이슈 댓글 전용 — 작성자가 이 이슈에 투표했다면 현재 선택지 id.
  * replies: 게시판 댓글 전용 — 1단계 대댓글.
- * authorCrewName: 작성자의 현재 크루 이름(크루가 없으면 null) — 닉네임 옆 배지용.
  */
 public record ReplyResponse(
         Long id,
@@ -22,15 +21,14 @@ public record ReplyResponse(
         boolean likedByMe,
         Long authorOptionId,
         Long parentId,
-        List<ReplyResponse> replies,
-        String authorCrewName
+        List<ReplyResponse> replies
 ) {
-    public static ReplyResponse from(Reply reply, String authorCrewName) {
-        return from(reply, 0, false, null, List.of(), authorCrewName);
+    public static ReplyResponse from(Reply reply) {
+        return from(reply, 0, false, null, List.of());
     }
 
     public static ReplyResponse from(Reply reply, long likeCount, boolean likedByMe, Long authorOptionId,
-                                     List<ReplyResponse> replies, String authorCrewName) {
+                                     List<ReplyResponse> replies) {
         return new ReplyResponse(
                 reply.getId(),
                 reply.getAuthor().getId(),
@@ -41,7 +39,6 @@ public record ReplyResponse(
                 likedByMe,
                 authorOptionId,
                 reply.getParent() != null ? reply.getParent().getId() : null,
-                replies,
-                authorCrewName);
+                replies);
     }
 }

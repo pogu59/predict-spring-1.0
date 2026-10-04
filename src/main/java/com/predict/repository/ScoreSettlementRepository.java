@@ -4,7 +4,6 @@ import com.predict.ScoreSettlement;
 import com.predict.enums.SettlementResult;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -28,8 +27,4 @@ public interface ScoreSettlementRepository extends JpaRepository<ScoreSettlement
 
     /** 관리자 페이지 유저 상세 통계 — 채점 완료(정답+오답) 수. 정답률 = 정답수/이 값. */
     long countByUserIdAndResultInAndIsReversedFalse(Long userId, Collection<SettlementResult> results);
-
-    /** 크루 대항전 주간 집계 — 기간 안의 유효 정산. */
-    List<ScoreSettlement> findBySettledAtGreaterThanEqualAndSettledAtLessThanAndIsReversedFalse(
-            LocalDateTime from, LocalDateTime to);
 }

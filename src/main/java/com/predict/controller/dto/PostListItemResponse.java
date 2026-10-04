@@ -4,7 +4,7 @@ import com.predict.Post;
 
 import java.time.LocalDateTime;
 
-/** contentPreview: 본문 첫 줄. thumbnailUrl: 첫 첨부 이미지(없으면 null). authorCrewName: 작성자 크루(없으면 null). */
+/** contentPreview: 본문 첫 줄. thumbnailUrl: 첫 첨부 이미지(없으면 null). */
 public record PostListItemResponse(
         Long id,
         String authorNickname,
@@ -15,11 +15,9 @@ public record PostListItemResponse(
         boolean likedByMe,
         int viewCount,
         long replyCount,
-        LocalDateTime createdAt,
-        String authorCrewName
+        LocalDateTime createdAt
 ) {
-    public static PostListItemResponse from(Post post, long likeCount, boolean likedByMe, long replyCount,
-                                            String authorCrewName) {
+    public static PostListItemResponse from(Post post, long likeCount, boolean likedByMe, long replyCount) {
         String firstLine = post.getContent().strip().split("\\R", 2)[0];
         return new PostListItemResponse(
                 post.getId(),
@@ -31,7 +29,6 @@ public record PostListItemResponse(
                 likedByMe,
                 post.getViewCount(),
                 replyCount,
-                post.getCreatedAt(),
-                authorCrewName);
+                post.getCreatedAt());
     }
 }

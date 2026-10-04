@@ -40,17 +40,14 @@ public class ReplyService {
     private final IssueRepository issueRepository;
     private final VoteRepository voteRepository;
     private final PostService postService;
-    private final CrewService crewService;
 
     public ReplyService(ReplyRepository replyRepository, ReplyLikeRepository replyLikeRepository,
-                        IssueRepository issueRepository, VoteRepository voteRepository, PostService postService,
-                        CrewService crewService) {
+                        IssueRepository issueRepository, VoteRepository voteRepository, PostService postService) {
         this.replyRepository = replyRepository;
         this.replyLikeRepository = replyLikeRepository;
         this.issueRepository = issueRepository;
         this.voteRepository = voteRepository;
         this.postService = postService;
-        this.crewService = crewService;
     }
 
     @Transactional
@@ -86,10 +83,9 @@ public class ReplyService {
             optionByUserId.put(vote.getUser().getId(), vote.getIssueOption().getId());
         }
         LikeInfo likes = likeInfo(replies, viewer);
-        Map<Long, String> crewNames = crewNamesOf(replies);
         return replies.stream()
                 .map(r -> ReplyResponse.from(r, likes.count(r), likes.liked(r),
-                        optionByUserId.get(r.getAuthor().getId()), List.of(), crewNames.get(r.getAuthor().getId())))
+                        optionByUserId.get(r.getAuthor().getId()), List.of()))
                 .toList();
     }
 
@@ -98,7 +94,6 @@ public class ReplyService {
     public List<ReplyResponse> listForPost(Long postId, User viewer) {
         List<Reply> replies = replyRepository.findByPostIdAndDeletedFalseAndHiddenFalseOrderByCreatedAtAsc(postId);
         LikeInfo likes = likeInfo(replies, viewer);
-        Map<Long, String> crewNames = crewNamesOf(replies);
         Set<Long> visibleIds = new HashSet<>();
         replies.forEach(r -> visibleIds.add(r.getId()));
 
@@ -106,8 +101,7 @@ public class ReplyService {
         for (Reply r : replies) {
             if (r.getParent() != null && visibleIds.contains(r.getParent().getId())) {
                 childrenByParent.computeIfAbsent(r.getParent().getId(), k -> new ArrayList<>())
-                        .add(ReplyResponse.from(r, likes.count(r), likes.liked(r), null, List.of(),
-                                crewNames.get(r.getAuthor().getId())));
+                        .add(ReplyResponse.from(r, likes.count(r), likes.liked(r), null, List.of()));
             }
         }
         Map<Long, ReplyResponse> roots = new LinkedHashMap<>();
@@ -115,22 +109,10 @@ public class ReplyService {
             boolean nested = r.getParent() != null && visibleIds.contains(r.getParent().getId());
             if (!nested) {
                 roots.put(r.getId(), ReplyResponse.from(r, likes.count(r), likes.liked(r), null,
-                        childrenByParent.getOrDefault(r.getId(), List.of()), crewNames.get(r.getAuthor().getId())));
+                        childrenByParent.getOrDefault(r.getId(), List.of())));
             }
         }
         return new ArrayList<>(roots.values());
-    }
-
-    /** 댓글 작성자 옆 크루 배지용 — userId → 크루 이름. */
-    private Map<Long, String> crewNamesOf(List<Reply> replies) {
-        Set<Long> authorIds = new HashSet<>();
-        replies.forEach(r -> authorIds.add(r.getAuthor().getId()));
-        return crewService.crewNamesFor(authorIds);
-    }
-
-    /** 방금 쓴 댓글 응답용 — 작성자의 현재 크루 이름(없으면 null). */
-    public String crewNameOf(User author) {
-        return crewService.crewNamesFor(List.of(author.getId())).get(author.getId());
     }
 
     @Transactional
