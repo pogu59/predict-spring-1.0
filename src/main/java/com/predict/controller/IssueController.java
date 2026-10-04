@@ -126,7 +126,7 @@ public class IssueController {
         Long authorOptionId = voteRepository.findByUserIdAndIssueId(author.getId(), issueId)
                 .map(vote -> vote.getIssueOption().getId())
                 .orElse(null);
-        return ReplyResponse.from(reply, 0, false, authorOptionId, List.of());
+        return ReplyResponse.from(reply, 0, false, authorOptionId, List.of(), replyService.crewNameOf(author));
     }
 
     @DeleteMapping("/{issueId}/replies/{replyId}")

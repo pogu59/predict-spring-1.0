@@ -129,7 +129,7 @@ public class PostController {
                                       @Valid @RequestBody ReplyCreateRequest request) {
         User author = currentUserService.requireActiveUser(authorization);
         Reply reply = replyService.createForPost(author, postId, request.content(), request.parentId());
-        return ReplyResponse.from(reply);
+        return ReplyResponse.from(reply, replyService.crewNameOf(author));
     }
 
     @DeleteMapping("/{postId}/replies/{replyId}")

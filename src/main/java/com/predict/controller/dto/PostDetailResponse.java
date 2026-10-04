@@ -16,9 +16,11 @@ public record PostDetailResponse(
         long likeCount,
         boolean likedByMe,
         int viewCount,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        /** 작성자 크루(없으면 null) */
+        String authorCrewName
 ) {
-    public static PostDetailResponse from(Post post, long likeCount, boolean likedByMe) {
+    public static PostDetailResponse from(Post post, long likeCount, boolean likedByMe, String authorCrewName) {
         return new PostDetailResponse(
                 post.getId(),
                 post.getAuthor().getId(),
@@ -29,6 +31,7 @@ public record PostDetailResponse(
                 likeCount,
                 likedByMe,
                 post.getViewCount(),
-                post.getCreatedAt());
+                post.getCreatedAt(),
+                authorCrewName);
     }
 }

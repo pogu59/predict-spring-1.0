@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PostService {
@@ -33,13 +34,16 @@ public class PostService {
     private final PostLikeRepository postLikeRepository;
     private final ReplyRepository replyRepository;
     private final HiddenAuthorRepository hiddenAuthorRepository;
+    private final CrewService crewService;
 
     public PostService(PostRepository postRepository, PostLikeRepository postLikeRepository,
-                       ReplyRepository replyRepository, HiddenAuthorRepository hiddenAuthorRepository) {
+                       ReplyRepository replyRepository, HiddenAuthorRepository hiddenAuthorRepository,
+                       CrewService crewService) {
         this.postRepository = postRepository;
         this.postLikeRepository = postLikeRepository;
         this.replyRepository = replyRepository;
         this.hiddenAuthorRepository = hiddenAuthorRepository;
+        this.crewService = crewService;
     }
 
     @Transactional
@@ -80,10 +84,12 @@ public class PostService {
         Set<Long> liked = viewer == null || ids.isEmpty()
                 ? Set.of()
                 : new HashSet<>(postLikeRepository.findLikedPostIds(viewer.getId(), ids));
+        Map<Long, String> crewNames = crewService.crewNamesFor(
+                posts.stream().map(p -> p.getAuthor().getId()).collect(Collectors.toSet()));
 
         List<PostListItemResponse> items = posts.stream()
                 .map(p -> PostListItemResponse.from(p, likeCounts.getOrDefault(p.getId(), 0L), liked.contains(p.getId()),
-                        replyCounts.getOrDefault(p.getId(), 0L)))
+                        replyCounts.getOrDefault(p.getId(), 0L), crewNames.get(p.getAuthor().getId())))
                 .sorted("hot".equals(sort)
                         ? Comparator.comparingLong((PostListItemResponse p) -> p.likeCount() + p.replyCount() * 3).reversed()
                                 .thenComparing(PostListItemResponse::createdAt, Comparator.reverseOrder())
@@ -107,11 +113,16 @@ public class PostService {
         }
         post.increaseViewCount();
         boolean liked = viewer != null && postLikeRepository.findByPostIdAndUserId(postId, viewer.getId()).isPresent();
-        return PostDetailResponse.from(post, postLikeRepository.countByPostId(postId), liked);
+        return PostDetailResponse.from(post, postLikeRepository.countByPostId(postId), liked, crewNameOf(post));
     }
 
     public PostDetailResponse toDetail(Post post) {
-        return PostDetailResponse.from(post, postLikeRepository.countByPostId(post.getId()), false);
+        return PostDetailResponse.from(post, postLikeRepository.countByPostId(post.getId()), false, crewNameOf(post));
+    }
+
+    private String crewNameOf(Post post) {
+        Long authorId = post.getAuthor().getId();
+        return crewService.crewNamesFor(List.of(authorId)).get(authorId);
     }
 
     @Transactional
