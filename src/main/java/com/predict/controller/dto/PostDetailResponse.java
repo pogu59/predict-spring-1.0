@@ -1,6 +1,7 @@
 package com.predict.controller.dto;
 
 import com.predict.Post;
+import com.predict.enums.PostTopic;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,6 +14,7 @@ public record PostDetailResponse(
         String title,
         String content,
         List<String> images,
+        PostTopic topic,
         long likeCount,
         boolean likedByMe,
         int viewCount,
@@ -26,6 +28,7 @@ public record PostDetailResponse(
                 post.getTitle(),
                 post.getContent(),
                 List.copyOf(post.getImages()),
+                post.getTopic(),
                 likeCount,
                 likedByMe,
                 post.getViewCount(),

@@ -1,16 +1,19 @@
 package com.predict.controller.dto;
 
 import com.predict.Post;
+import com.predict.enums.PostTopic;
 
 import java.time.LocalDateTime;
 
-/** contentPreview: 본문 첫 줄. thumbnailUrl: 첫 첨부 이미지(없으면 null). */
+/** contentPreview: 본문 첫 줄. thumbnailUrl: 첫 첨부 이미지(없으면 null). topic: 말머리(없으면 null). */
 public record PostListItemResponse(
         Long id,
         String authorNickname,
         String title,
         String contentPreview,
         String thumbnailUrl,
+        int imageCount,
+        PostTopic topic,
         long likeCount,
         boolean likedByMe,
         int viewCount,
@@ -25,6 +28,8 @@ public record PostListItemResponse(
                 post.getTitle(),
                 firstLine.length() > 120 ? firstLine.substring(0, 120) : firstLine,
                 post.getImages().isEmpty() ? null : post.getImages().get(0),
+                post.getImages().size(),
+                post.getTopic(),
                 likeCount,
                 likedByMe,
                 post.getViewCount(),

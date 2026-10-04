@@ -13,6 +13,7 @@ import com.predict.controller.dto.PostListItemResponse;
 import com.predict.controller.dto.ReplyCreateRequest;
 import com.predict.controller.dto.ReplyResponse;
 import com.predict.service.CurrentUserService;
+import com.predict.enums.PostTopic;
 import com.predict.service.PostService;
 import com.predict.service.ReplyService;
 import com.predict.service.ReportService;
@@ -53,16 +54,25 @@ public class PostController {
         this.currentUserService = currentUserService;
     }
 
-    /** sort: hot(좋아요+댓글x3) | new(최신). author=me면 로그인한 유저의 글만. */
+    /**
+     * sort: hot(좋아요+댓글x3) | new(최신) | comments | views. scope: all | title | author.
+     * topic: INFO | ANALYSIS | QUESTION | CHAT. period: all | day | week | month. hasImage=true면 사진 있는 글만.
+     * author=me면 로그인한 유저의 글만.
+     */
     @GetMapping
     public PageResponse<PostListItemResponse> list(@RequestHeader(value = "Authorization", required = false) String authorization,
                                                      @RequestParam(required = false) String keyword,
+                                                     @RequestParam(defaultValue = "all") String scope,
                                                      @RequestParam(defaultValue = "new") String sort,
+                                                     @RequestParam(required = false) PostTopic topic,
+                                                     @RequestParam(defaultValue = "all") String period,
+                                                     @RequestParam(defaultValue = "false") boolean hasImage,
                                                      @RequestParam(required = false) String author,
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "20") int size) {
         User viewer = currentUserService.optionalUser(authorization);
-        return postService.list(keyword, sort, "me".equals(author), viewer, page, size);
+        var query = new PostService.PostQuery(keyword, scope, sort, topic, period, hasImage, "me".equals(author));
+        return postService.list(query, viewer, page, size);
     }
 
     @PostMapping
@@ -70,7 +80,8 @@ public class PostController {
     public PostDetailResponse create(@RequestHeader("Authorization") String authorization,
                                       @Valid @RequestBody PostCreateRequest request) {
         User author = currentUserService.requireActiveUser(authorization);
-        Post post = postService.create(author, request.title().trim(), request.content(), request.imagesOrEmpty());
+        Post post = postService.create(author, request.title().trim(), request.content(), request.imagesOrEmpty(),
+                request.topic());
         return postService.toDetail(post);
     }
 
@@ -85,7 +96,7 @@ public class PostController {
                                      @PathVariable Long postId, @Valid @RequestBody PostCreateRequest request) {
         User requester = currentUserService.requireActiveUser(authorization);
         Post post = postService.update(postId, requester, request.title().trim(), request.content(),
-                request.imagesOrEmpty());
+                request.imagesOrEmpty(), request.topic());
         return postService.toDetail(post);
     }
 

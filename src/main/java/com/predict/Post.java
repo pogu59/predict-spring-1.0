@@ -1,5 +1,6 @@
 package com.predict;
 
+import com.predict.enums.PostTopic;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -50,6 +51,10 @@ public class Post {
     @Column(name = "url", nullable = false, length = 500)
     private List<String> images = new ArrayList<>();
 
+    /** 말머리(정보·분석·질문·잡담). 말머리가 생기기 전에 쓴 글은 null. */
+    @Column(name = "topic", length = 10)
+    private PostTopic topic;
+
     @Column(name = "is_hidden", nullable = false, columnDefinition = "boolean default false")
     private boolean hidden = false;
 
@@ -70,21 +75,23 @@ public class Post {
     }
 
     public Post(User author, String title, String content) {
-        this(author, title, content, List.of());
+        this(author, title, content, List.of(), null);
     }
 
-    public Post(User author, String title, String content, List<String> images) {
+    public Post(User author, String title, String content, List<String> images, PostTopic topic) {
         this.author = author;
         this.title = title;
         this.content = content;
         this.images.addAll(images);
+        this.topic = topic;
     }
 
-    public void update(String title, String content, List<String> images) {
+    public void update(String title, String content, List<String> images, PostTopic topic) {
         this.title = title;
         this.content = content;
         this.images.clear();
         this.images.addAll(images);
+        this.topic = topic;
     }
 
     public void setHidden(boolean hidden) {
