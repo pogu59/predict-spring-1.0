@@ -59,7 +59,7 @@ class SettlementCorrectionServiceTest {
     }
 
     @Test
-    void correctIssue_reversesSettlementsAndReplaysScoreToZeroWhenNoneRemain() throws Exception {
+    void correctIssue_reversesSettlementsAndReplaysFromUserStartingScore() throws Exception {
         Issue issue = new Issue(category, "테스트", null,
                 LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(1), List.of("예", "아니오"));
         IssueOption yesOption = issue.getOptions().get(0);
@@ -69,7 +69,7 @@ class SettlementCorrectionServiceTest {
         issue.confirm(yesOption, LocalDateTime.now(), null);
         setId(issue, 1L);
 
-        User user = new User("유저", "direct", null); // 100점(STARTING_CREDIBILITY_SCORE)으로 시작
+        User user = new User("유저", "direct", null); // 시작 신용도 500(startingCredibilityScore)
         setId(user, 10L);
         user.changeTier(Tier.BRONZE);
         // 이 투표는 100을 베팅했고, 정정 대상 정산이 무효화되면 다시 "정산 안 된" 상태로
@@ -92,8 +92,8 @@ class SettlementCorrectionServiceTest {
         assertThat(issue.getStatus()).isEqualTo(IssueStatus.PENDING_RESULT);
         assertThat(issue.getCorrectOption()).isNull();
         assertThat(issue.getConfirmedBy()).isNull();
-        // 재생된 잔액(정산 기록 없음 -> 시작값 100) - 아직 안 풀린 이 투표의 에스크로(100) = 0
-        assertThat(user.getCredibilityScore()).isZero();
+        // 재생된 잔액(정산 기록 없음 -> 유저별 시작값 500) - 아직 안 풀린 이 투표의 에스크로(100) = 400
+        assertThat(user.getCredibilityScore()).isEqualTo(400);
 
         ArgumentCaptor<TierChange> captor = ArgumentCaptor.forClass(TierChange.class);
         verify(tierChangeRepository).save(captor.capture());

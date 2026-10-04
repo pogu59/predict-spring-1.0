@@ -5,33 +5,28 @@ import com.predict.enums.IssueStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
-/**
- * 관리자 페이지 주제 목록. 공개 IssueResponse와 달리 상태와 무관하게 선택지 정보를 항상 노출한다.
- */
+/** 관리자 이슈 목록. 관리자 화면도 참여 인원 없이 선택지별 비율만 보여준다. */
 public record AdminIssueListItemResponse(
         Long id,
-        Integer categoryId,
-        String categoryName,
         String title,
         IssueStatus status,
         LocalDateTime voteStartAt,
         LocalDateTime voteDeadlineAt,
-        List<IssueOptionResponse> options,
-        long totalVotes
+        Long correctOptionId,
+        String coverImageUrl,
+        List<IssueOptionResponse> options
 ) {
-    public static AdminIssueListItemResponse from(Issue issue, long totalVotes) {
+    public static AdminIssueListItemResponse from(Issue issue, Map<Long, Integer> countsByOptionId) {
         return new AdminIssueListItemResponse(
                 issue.getId(),
-                issue.getCategory().getId(),
-                issue.getCategory().getName(),
                 issue.getTitle(),
                 issue.getStatus(),
                 issue.getVoteStartAt(),
                 issue.getVoteDeadlineAt(),
-                issue.getOptions().stream()
-                        .map(option -> new IssueOptionResponse(option.getId(), option.getText(), option.getVoteCount()))
-                        .toList(),
-                totalVotes);
+                issue.getCorrectOption() != null ? issue.getCorrectOption().getId() : null,
+                issue.getCoverImageUrl(),
+                IssueOptionResponse.percentsOf(issue.getOptions(), countsByOptionId));
     }
 }

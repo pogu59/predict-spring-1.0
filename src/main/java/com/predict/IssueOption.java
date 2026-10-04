@@ -12,7 +12,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 
 /**
- * 주제(Issue)의 선택지. 관리자가 등록 시 텍스트로 직접 입력하며 개수 제한은 없다(최소 2개).
+ * 주제(Issue)의 선택지. 관리자가 등록 시 텍스트로 직접 입력한다(최소 2개, 최대 6개).
  */
 @Getter
 @Entity
@@ -49,5 +49,9 @@ public class IssueOption {
 
     public void recordVoteCount(int voteCount) {
         this.voteCount = voteCount;
+    }
+
+    public void clearVoteCount() {
+        this.voteCount = null;
     }
 }

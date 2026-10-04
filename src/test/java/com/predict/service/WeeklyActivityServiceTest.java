@@ -55,16 +55,16 @@ class WeeklyActivityServiceTest {
     void belowThreshold_demotesDisplayTierOnly() throws Exception {
         User user = new User("다이아유저", "direct", null);
         setId(user, 1L);
-        user.resetCredibilityScore(420); // 다이아 구간
+        user.resetCredibilityScore(1250); // 다이아 구간
         user.changeTier(Tier.DIAMOND); // 지난주까지는 정상적으로 다이아였던 상태
-        when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
+        when(userRepository.findByCredibilityScoreGreaterThanEqual(1200)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))
                 .thenReturn(3L); // 5회 미만
 
         weeklyActivityService.checkWeeklyActivity(WEEK_START, WEEK_END);
 
         assertThat(user.getTier()).isEqualTo(Tier.PLATINUM); // 다이아 -> 한 단계 강등
-        assertThat(user.getCredibilityScore()).isEqualTo(420); // 점수는 그대로
+        assertThat(user.getCredibilityScore()).isEqualTo(1250); // 점수는 그대로
 
         ArgumentCaptor<TierChange> tierChangeCaptor = ArgumentCaptor.forClass(TierChange.class);
         verify(tierChangeRepository).save(tierChangeCaptor.capture());
@@ -79,9 +79,9 @@ class WeeklyActivityServiceTest {
     void meetsThreshold_restoresPointTier() throws Exception {
         User user = new User("복귀유저", "direct", null);
         setId(user, 2L);
-        user.resetCredibilityScore(420);
+        user.resetCredibilityScore(1250);
         user.changeTier(Tier.PLATINUM); // 지난주 활동성 강등되어 있던 상태
-        when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
+        when(userRepository.findByCredibilityScoreGreaterThanEqual(1200)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))
                 .thenReturn(5L); // 조건 충족
 
@@ -97,9 +97,9 @@ class WeeklyActivityServiceTest {
     void alreadyMatchingPointTier_noTierChangeRecorded() throws Exception {
         User user = new User("정상유저", "direct", null);
         setId(user, 3L);
-        user.resetCredibilityScore(420);
+        user.resetCredibilityScore(1250);
         user.changeTier(Tier.DIAMOND); // 이미 점수 티어와 일치하는 상태
-        when(userRepository.findByCredibilityScoreGreaterThanEqual(400)).thenReturn(List.of(user));
+        when(userRepository.findByCredibilityScoreGreaterThanEqual(1200)).thenReturn(List.of(user));
         when(voteRepository.countByUserIdAndVotedAtGreaterThanEqualAndVotedAtLessThan(anyLong(), any(), any()))
                 .thenReturn(10L);
 

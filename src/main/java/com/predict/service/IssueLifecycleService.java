@@ -32,7 +32,7 @@ public class IssueLifecycleService {
     @Transactional
     public void closeExpiredIssues() {
         LocalDateTime now = LocalDateTime.now();
-        List<Issue> expiredIssues = issueRepository.findByStatusAndVoteDeadlineAtLessThanEqual(IssueStatus.OPEN, now);
+        List<Issue> expiredIssues = issueRepository.findByStatusAndDeletedFalseAndVoteDeadlineAtLessThanEqual(IssueStatus.OPEN, now);
         for (Issue issue : expiredIssues) {
             Map<Long, Integer> voteCountsByOptionId = new HashMap<>();
             for (IssueOption option : issue.getOptions()) {

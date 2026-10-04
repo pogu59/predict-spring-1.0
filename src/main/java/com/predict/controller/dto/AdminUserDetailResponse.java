@@ -10,9 +10,12 @@ import java.time.LocalDateTime;
 public record AdminUserDetailResponse(
         Long id,
         String nickname,
+        String email,
+        String via,
         Tier tier,
         int credibilityScore,
         Role role,
+        boolean suspended,
         boolean activitySuppressed,
         LocalDateTime createdAt,
         long totalVotes,
@@ -20,8 +23,8 @@ public record AdminUserDetailResponse(
         long gradedCount
 ) {
     public static AdminUserDetailResponse from(User user, long totalVotes, long correctCount, long gradedCount) {
-        return new AdminUserDetailResponse(user.getId(), user.getNickname(), user.getTier(),
-                user.getCredibilityScore(), user.getRole(), user.isActivitySuppressed(), user.getCreatedAt(),
-                totalVotes, correctCount, gradedCount);
+        return new AdminUserDetailResponse(user.getId(), user.getNickname(), user.getEmail(), user.getSignupChannel(),
+                user.getTier(), user.getCredibilityScore(), user.getRole(), user.isSuspended(),
+                user.isActivitySuppressed(), user.getCreatedAt(), totalVotes, correctCount, gradedCount);
     }
 }

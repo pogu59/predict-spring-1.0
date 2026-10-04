@@ -19,10 +19,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByKakaoId(String kakaoId);
 
+    Optional<User> findByEmail(String email);
+
+    boolean existsByEmail(String email);
+
+    boolean existsByNicknameIgnoreCase(String nickname);
+
     /** 관리자 페이지 유저 검색 — 닉네임 부분일치 + role/티어 필터 + 페이지네이션(schema_8.sql 참고쿼리 ⑫). */
     @Query("""
             SELECT u FROM User u
-            WHERE (:keyword IS NULL OR LOWER(u.nickname) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            WHERE (:keyword IS NULL OR LOWER(u.nickname) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')))
               AND (:role IS NULL OR u.role = :role)
               AND (:tier IS NULL OR u.tier = :tier)
             ORDER BY u.createdAt DESC

@@ -13,13 +13,17 @@ import java.util.List;
 
 public interface IssueRepository extends JpaRepository<Issue, Long> {
 
-    /** 마감시각이 지났는데 아직 열려있는 주제 조회(자동 마감 배치용). */
-    List<Issue> findByStatusAndVoteDeadlineAtLessThanEqual(IssueStatus status, LocalDateTime deadline);
+    /** 마감시각이 지났는데 아직 열려있는 주제 조회(자동 마감 배치용). 삭제된 주제는 제외. */
+    List<Issue> findByStatusAndDeletedFalseAndVoteDeadlineAtLessThanEqual(IssueStatus status, LocalDateTime deadline);
+
+    /** 공개 목록 — 삭제된 주제 제외. */
+    List<Issue> findByDeletedFalse();
 
     /** 관리자 페이지 주제 목록 — 카테고리/상태/제목 검색어 필터 + 페이지네이션(schema_8.sql 참고쿼리 ⑦). */
     @Query("""
             SELECT t FROM Issue t
-            WHERE (:categoryId IS NULL OR t.category.id = :categoryId)
+            WHERE t.deleted = false
+              AND (:categoryId IS NULL OR t.category.id = :categoryId)
               AND (:status IS NULL OR t.status = :status)
               AND (:keyword IS NULL OR LOWER(t.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
             ORDER BY t.createdAt DESC

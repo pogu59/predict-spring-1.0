@@ -28,7 +28,7 @@ public class WeeklyActivityService {
 
     private static final int MIN_WEEKLY_VOTES = 5;
     /** 다이아 하한. 이 점수 미만이면 애초에 활동성 체크 대상이 아니다. */
-    private static final int ACTIVITY_CHECK_THRESHOLD_SCORE = 400;
+    private static final int ACTIVITY_CHECK_THRESHOLD_SCORE = TierPolicy.DIAMOND_MIN_SCORE;
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;

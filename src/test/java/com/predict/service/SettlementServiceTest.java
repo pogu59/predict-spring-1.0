@@ -66,10 +66,11 @@ class SettlementServiceTest {
 
     @Test
     void confirmIssue_correctVoter_gainsScoreAndSettlementRecordsCorrect() {
-        User user = new User("정답자", "direct", null); // 100점(STARTING_CREDIBILITY_SCORE)으로 시작
+        User user = new User("정답자", "direct", null); // 500점(STARTING_CREDIBILITY_SCORE)으로 시작
         int stake = 100;
         Vote vote = new Vote(user, issue, yesOption, stake);
-        user.applyScoreDelta(-stake); // VoteService.castVote가 하는 에스크로를 재현 -> 0점
+        user.applyScoreDelta(-stake); // VoteService.castVote가 하는 에스크로를 재현 -> 400점
+        int afterEscrow = user.getCredibilityScore();
         when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
         settlementService.confirmIssue(1L, 100L, null);
@@ -80,8 +81,8 @@ class SettlementServiceTest {
 
         assertThat(saved.getResult()).isEqualTo(SettlementResult.CORRECT);
         assertThat(saved.getScoreDelta()).isPositive();
-        // 에스크로로 0점이 된 상태에서 정산 크레딧(stake + scoreDelta)만큼 돌려받는다.
-        assertThat(user.getCredibilityScore()).isEqualTo(stake + saved.getScoreDelta());
+        // 에스크로로 줄어든 잔액에 정산 크레딧(stake + scoreDelta)만큼 돌려받는다.
+        assertThat(user.getCredibilityScore()).isEqualTo(afterEscrow + stake + saved.getScoreDelta());
         assertThat(issue.getCorrectOption()).isEqualTo(yesOption);
     }
 
@@ -104,8 +105,8 @@ class SettlementServiceTest {
     @Test
     void confirmIssue_scoreCrossingTierBoundary_recordsNaturalPromotion() {
         User user = new User("승급자", "direct", null);
-        // 정산 직전 잔액이 이미 브론즈로 동기화되어 있던 상태(90점, 실버(100) 문턱 바로 아래)를 재현
-        user.resetCredibilityScore(90);
+        // 정산 직전 잔액이 이미 브론즈로 동기화되어 있던 상태(290점, 실버(300) 문턱 바로 아래)를 재현
+        user.resetCredibilityScore(290);
         user.changeTier(Tier.BRONZE);
         Vote vote = new Vote(user, issue, yesOption, 100); // 정답, 다수(p=0.55) -> 대략 +18점 크레딧
         when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
@@ -124,15 +125,15 @@ class SettlementServiceTest {
     @Test
     void confirmIssue_activitySuppressedUser_neverRecalculatedAboveDiamondEvenIfScoreQualifies() {
         User user = new User("활동성강등유저", "direct", null);
-        user.resetCredibilityScore(485); // 다이아 구간, 마스터(500) 문턱 바로 아래
+        user.resetCredibilityScore(1785); // 다이아 구간, 마스터(1800) 문턱 바로 아래
         user.changeTier(Tier.DIAMOND);
         user.setActivitySuppressed(true); // 지난주 활동성 체크 미달로 강등 상태
-        Vote vote = new Vote(user, issue, yesOption, 100); // 정답, 다수(p=0.55) -> 대략 +18점 크레딧 -> 500점 이상(마스터 구간)
+        Vote vote = new Vote(user, issue, yesOption, 100); // 정답, 다수(p=0.55) -> 대략 +18점 크레딧 -> 1800점 이상(마스터 구간)
         when(voteRepository.findByIssueId(1L)).thenReturn(List.of(vote));
 
         settlementService.confirmIssue(1L, 100L, null);
 
-        assertThat(user.getCredibilityScore()).isGreaterThanOrEqualTo(500);
+        assertThat(user.getCredibilityScore()).isGreaterThanOrEqualTo(1800);
         assertThat(user.getTier()).isEqualTo(Tier.PLATINUM); // 점수는 마스터 구간이어도 강등 상태라 플래티넘 캡
     }
 

@@ -10,20 +10,24 @@ public final class TierPolicy {
     private TierPolicy() {
     }
 
+    /** 다이아 하한 — 주간 활동성 체크(WeeklyActivityService) 대상 기준이기도 하다. */
+    public static final int DIAMOND_MIN_SCORE = 1200;
+
+    /** 신규 가입 500 = 골드 시작을 기준으로 잡은 구간(프론트 lib/tier.tsx TIER_THRESHOLDS와 동일). */
     public static Tier fromScore(int credibilityScore) {
-        if (credibilityScore >= 500) {
+        if (credibilityScore >= 1800) {
             return Tier.MASTER;
         }
-        if (credibilityScore >= 400) {
+        if (credibilityScore >= DIAMOND_MIN_SCORE) {
             return Tier.DIAMOND;
         }
-        if (credibilityScore >= 300) {
+        if (credibilityScore >= 800) {
             return Tier.PLATINUM;
         }
-        if (credibilityScore >= 200) {
+        if (credibilityScore >= 500) {
             return Tier.GOLD;
         }
-        if (credibilityScore >= 100) {
+        if (credibilityScore >= 300) {
             return Tier.SILVER;
         }
         if (credibilityScore >= 1) {

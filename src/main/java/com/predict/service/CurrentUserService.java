@@ -29,6 +29,32 @@ public class CurrentUserService {
         return loginSession.getUser();
     }
 
+    /** 글쓰기·댓글·투표처럼 활동 정지 유저를 막아야 하는 API 전용. */
+    public User requireActiveUser(String authorizationHeader) {
+        User user = requireUser(authorizationHeader);
+        requireNotSuspended(user);
+        return user;
+    }
+
+    public static void requireNotSuspended(User user) {
+        if (user.isSuspended()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "활동이 정지된 계정이에요");
+        }
+    }
+
+    /**
+     * 공개 조회 API에서 "내가 좋아요 눌렀는지" 같은 개인화 값을 채울 때 쓴다. 헤더가 없거나
+     * 세션이 유효하지 않으면 에러 대신 null(비로그인)로 취급한다.
+     */
+    public User optionalUser(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        return loginSessionRepository.findBySessionToken(authorizationHeader.substring("Bearer ".length()))
+                .map(LoginSession::getUser)
+                .orElse(null);
+    }
+
     /** 관리자 페이지 API 전용. 로그인은 했지만 관리자가 아니면 403. */
     public User requireAdmin(String authorizationHeader) {
         User user = requireUser(authorizationHeader);

@@ -70,7 +70,7 @@ public class SettlementCorrectionService {
     }
 
     /**
-     * 시작 잔액(User.STARTING_CREDIBILITY_SCORE) + 유효한 정산 기록만으로 잔액을 재생한 뒤,
+     * 시작 잔액(유저별 startingCredibilityScore) + 유효한 정산 기록만으로 잔액을 재생한 뒤,
      * 아직 정산되지 않은(=활성 정산 기록이 없는) 투표의 베팅액을 뺀다 — 그 돈은 지금도
      * 에스크로된 채로 잠겨 있어 재생된 "정산 완료분"에 포함시키면 안 되기 때문이다.
      * 베팅 도입 전(투표에 비용이 없던 시절)에는 이 감산이 필요 없었지만, 지금은 정산 기록만으로
@@ -80,12 +80,14 @@ public class SettlementCorrectionService {
         List<ScoreSettlement> remaining =
                 scoreSettlementRepository.findByUserIdAndIsReversedFalseOrderBySettledAtAscIdAsc(user.getId());
 
-        int running = User.STARTING_CREDIBILITY_SCORE;
+        int running = user.getStartingCredibilityScore();
         for (ScoreSettlement settlement : remaining) {
             running = Math.max(0, running + settlement.getScoreDelta());
         }
 
+        // 삭제된 이슈의 투표는 삭제 시점에 베팅액을 이미 돌려줬으므로 에스크로에서 뺀다.
         int openStake = voteRepository.findByUserIdOrderByVotedAtDesc(user.getId()).stream()
+                .filter(vote -> !vote.getIssue().isDeleted())
                 .filter(vote -> scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId()).isEmpty())
                 .mapToInt(Vote::getStake)
                 .sum();

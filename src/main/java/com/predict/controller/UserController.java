@@ -1,8 +1,7 @@
 package com.predict.controller;
 
-import com.predict.Issue;
-import com.predict.IssueOption;
 import com.predict.User;
+import com.predict.Vote;
 import com.predict.controller.dto.LoginSessionResponse;
 import com.predict.controller.dto.MyStatsResponse;
 import com.predict.controller.dto.MyVoteResponse;
@@ -11,13 +10,13 @@ import com.predict.controller.dto.ShareClickResponse;
 import com.predict.controller.dto.SignupRequest;
 import com.predict.controller.dto.UserResponse;
 import com.predict.enums.SettlementResult;
-import com.predict.enums.IssueStatus;
 import com.predict.repository.ScoreSettlementRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
 import com.predict.service.LoginSessionService;
 import com.predict.service.ShareClickService;
 import com.predict.service.UserService;
+import com.predict.service.VoteCountService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,16 +40,19 @@ public class UserController {
     private final ShareClickService shareClickService;
     private final VoteRepository voteRepository;
     private final ScoreSettlementRepository scoreSettlementRepository;
+    private final VoteCountService voteCountService;
 
     public UserController(UserRepository userRepository, UserService userService,
                            LoginSessionService loginSessionService, ShareClickService shareClickService,
-                           VoteRepository voteRepository, ScoreSettlementRepository scoreSettlementRepository) {
+                           VoteRepository voteRepository, ScoreSettlementRepository scoreSettlementRepository,
+                           VoteCountService voteCountService) {
         this.userRepository = userRepository;
         this.userService = userService;
         this.loginSessionService = loginSessionService;
         this.shareClickService = shareClickService;
         this.voteRepository = voteRepository;
         this.scoreSettlementRepository = scoreSettlementRepository;
+        this.voteCountService = voteCountService;
     }
 
     @PostMapping
@@ -82,32 +83,24 @@ public class UserController {
     @GetMapping("/{userId}/stats")
     public MyStatsResponse stats(@PathVariable Long userId) {
         requireUser(userId);
-        long totalVotes = voteRepository.countByUserId(userId);
+        long totalVotes = voteRepository.countByUserIdAndIssueDeletedFalse(userId);
         long correctCount = scoreSettlementRepository.countByUserIdAndResultAndIsReversedFalse(userId, SettlementResult.CORRECT);
         long gradedCount = scoreSettlementRepository.countByUserIdAndResultInAndIsReversedFalse(
                 userId, List.of(SettlementResult.CORRECT, SettlementResult.INCORRECT));
         return new MyStatsResponse(totalVotes, correctCount, gradedCount);
     }
 
-    /** 마이페이지 최근 투표 기록(최신순). */
+    /** 마이페이지 최근 투표 기록(최신순). 삭제된 이슈(베팅액 환불 완료)의 투표는 뺀다. */
     @GetMapping("/{userId}/votes")
     public List<MyVoteResponse> votes(@PathVariable Long userId) {
         requireUser(userId);
-        return voteRepository.findByUserIdOrderByVotedAtDesc(userId).stream()
+        List<Vote> votes = voteRepository.findByUserIdAndIssueDeletedFalseOrderByVotedAtDesc(userId);
+        Map<Long, Integer> counts = voteCountService.countsByOption(
+                votes.stream().map(Vote::getIssue).distinct().toList());
+        return votes.stream()
                 .map(vote -> MyVoteResponse.from(vote,
-                        scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId()),
-                        liveCountsByOptionId(vote.getIssue())))
+                        scoreSettlementRepository.findByVoteIdAndIsReversedFalse(vote.getId()), counts))
                 .toList();
-    }
-
-    /** OPEN 상태 주제의 실시간 득표수. IssueOption.voteCount는 마감 전엔 null이라 직접 집계한다. */
-    private Map<Long, Integer> liveCountsByOptionId(Issue issue) {
-        if (issue.getStatus() != IssueStatus.OPEN) return Map.of();
-        Map<Long, Integer> counts = new HashMap<>();
-        for (IssueOption option : issue.getOptions()) {
-            counts.put(option.getId(), (int) voteRepository.countByIssueIdAndIssueOptionId(issue.getId(), option.getId()));
-        }
-        return counts;
     }
 
     private User requireUser(Long userId) {

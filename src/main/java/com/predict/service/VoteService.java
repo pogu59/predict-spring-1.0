@@ -25,21 +25,16 @@ public class VoteService {
 
     @Transactional
     public Vote castVote(User user, Long issueId, Long issueOptionId, int stake) {
-        Issue issue = issueRepository.findById(issueId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주제: " + issueId));
-
-        if (issue.getStatus() != IssueStatus.OPEN) {
-            throw new IllegalStateException("투표할 수 없는 상태의 주제입니다: " + issue.getStatus());
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (now.isBefore(issue.getVoteStartAt()) || !now.isBefore(issue.getVoteDeadlineAt())) {
-            throw new IllegalStateException("투표 가능 시간이 아닙니다.");
-        }
+        CurrentUserService.requireNotSuspended(user);
+        Issue issue = requireVotableIssue(issueId);
         if (voteRepository.existsByUserIdAndIssueId(user.getId(), issueId)) {
             throw new IllegalStateException("이미 투표한 주제입니다.");
         }
+        if (stake < 1) {
+            throw new IllegalArgumentException("신용도를 1 이상 걸어주세요.");
+        }
         if (stake > user.getCredibilityScore()) {
-            throw new IllegalStateException("보유 신용도(" + user.getCredibilityScore() + ")보다 많이 베팅할 수 없습니다.");
+            throw new IllegalStateException("보유 신용도가 부족해요");
         }
         IssueOption option = requireOption(issue, issueOptionId);
 
@@ -49,6 +44,34 @@ public class VoteService {
         user.applyScoreDelta(-stake);
 
         return voteRepository.save(new Vote(user, issue, option, stake));
+    }
+
+    /**
+     * 마감 전 선택 변경. 스테이크는 최초 투표 때 건 그대로 두고 선택지만 바꾼다(추가 차감 없음).
+     * 정산은 마감 시점 득표 스냅샷과 그때의 선택지로 하므로, 마감 전에 바뀐 선택은 자연스럽게 반영된다.
+     */
+    @Transactional
+    public Vote changeVote(User user, Long issueId, Long issueOptionId) {
+        CurrentUserService.requireNotSuspended(user);
+        Issue issue = requireVotableIssue(issueId);
+        Vote vote = voteRepository.findByUserIdAndIssueId(user.getId(), issueId)
+                .orElseThrow(() -> new IllegalStateException("아직 투표하지 않은 주제입니다."));
+        vote.changeOption(requireOption(issue, issueOptionId));
+        return vote;
+    }
+
+    private Issue requireVotableIssue(Long issueId) {
+        Issue issue = issueRepository.findById(issueId)
+                .filter(i -> !i.isDeleted())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주제: " + issueId));
+        if (issue.getStatus() != IssueStatus.OPEN) {
+            throw new IllegalStateException("마감된 이슈예요");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(issue.getVoteStartAt()) || !now.isBefore(issue.getVoteDeadlineAt())) {
+            throw new IllegalStateException("투표 가능 시간이 아닙니다.");
+        }
+        return issue;
     }
 
     private IssueOption requireOption(Issue issue, Long issueOptionId) {

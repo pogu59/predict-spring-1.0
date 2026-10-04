@@ -9,6 +9,7 @@ import com.predict.repository.VoteRepository;
 import com.predict.service.LoginSessionService;
 import com.predict.service.ShareClickService;
 import com.predict.service.UserService;
+import com.predict.service.VoteCountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +43,7 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         userController = new UserController(userRepository, userService, loginSessionService, shareClickService,
-                voteRepository, scoreSettlementRepository);
+                voteRepository, scoreSettlementRepository, new VoteCountService(voteRepository));
     }
 
     @Test

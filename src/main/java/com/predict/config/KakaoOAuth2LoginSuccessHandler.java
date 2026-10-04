@@ -1,7 +1,6 @@
 package com.predict.config;
 
 import com.predict.LoginSession;
-import com.predict.User;
 import com.predict.service.LoginSessionService;
 import com.predict.service.UserService;
 import jakarta.servlet.ServletException;
@@ -43,14 +42,17 @@ public class KakaoOAuth2LoginSuccessHandler implements AuthenticationSuccessHand
         String kakaoId = String.valueOf(oAuth2User.getAttributes().get("id"));
         String nickname = extractNickname(oAuth2User.getAttributes());
 
-        User user = userService.findOrCreateByKakao(kakaoId, nickname);
-        LoginSession loginSession = loginSessionService.recordLogin(user);
+        UserService.KakaoLogin login = userService.findOrCreateByKakao(kakaoId, nickname);
+        LoginSession loginSession = loginSessionService.recordLogin(login.user());
 
-        String redirectUrl = UriComponentsBuilder.fromUriString(frontendUrl)
+        // 처음 가입한 유저는 프론트가 닉네임·약관 단계(/signup/nickname?via=kakao)로 보낸다.
+        UriComponentsBuilder redirect = UriComponentsBuilder.fromUriString(frontendUrl)
                 .path("/auth/callback")
-                .queryParam("token", loginSession.getSessionToken())
-                .build()
-                .toUriString();
+                .queryParam("token", loginSession.getSessionToken());
+        if (login.created()) {
+            redirect.queryParam("isNew", "true").queryParam("provider", "kakao");
+        }
+        String redirectUrl = redirect.build().toUriString();
         response.sendRedirect(redirectUrl);
     }
 

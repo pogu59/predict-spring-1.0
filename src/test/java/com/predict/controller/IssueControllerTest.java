@@ -13,6 +13,8 @@ import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
 import com.predict.service.CurrentUserService;
 import com.predict.service.ReplyService;
+import com.predict.service.ReportService;
+import com.predict.service.VoteCountService;
 import com.predict.service.VoteService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -44,6 +48,8 @@ class IssueControllerTest {
     @Mock
     private ReplyService replyService;
     @Mock
+    private ReportService reportService;
+    @Mock
     private CurrentUserService currentUserService;
 
     private IssueController issueController;
@@ -52,88 +58,96 @@ class IssueControllerTest {
     @BeforeEach
     void setUp() {
         issueController = new IssueController(issueRepository, userRepository, voteRepository, voteService,
-                replyService, currentUserService);
+                new VoteCountService(voteRepository), replyService, reportService, currentUserService);
         category = new Category(1, "정치");
     }
 
     @Test
-    void get_openIssue_hidesOptionVoteCounts() {
-        Issue issue = new Issue(category, "제목", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1),
-                List.of("예", "아니오"));
+    void get_openIssue_exposesPercentsButNeverVoteCounts() throws Exception {
+        Issue issue = openIssueWithOptionIds();
         when(issueRepository.findById(1L)).thenReturn(Optional.of(issue));
+        when(voteRepository.countByOptionForIssues(anyCollection()))
+                .thenReturn(List.<Object[]>of(new Object[]{100L, 3L}, new Object[]{200L, 1L}));
 
         IssueResponse response = issueController.get(1L, null);
 
         assertThat(response.options()).allSatisfy(option -> assertThat(option.voteCount()).isNull());
+        assertThat(response.options().get(0).percent()).isEqualTo(75);
+        assertThat(response.options().get(1).percent()).isEqualTo(25);
         assertThat(response.myOptionId()).isNull();
     }
 
     @Test
-    void get_openIssue_votedByRequester_exposesOptionVoteCounts() throws Exception {
-        Issue issue = new Issue(category, "제목", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1),
-                List.of("예", "아니오"));
-        setId(issue, 1L);
+    void get_openIssue_votedByRequester_returnsMyOptionAndStake() throws Exception {
+        Issue issue = openIssueWithOptionIds();
         IssueOption yesOption = issue.getOptions().get(0);
-        setId(yesOption, 100L);
-        setId(issue.getOptions().get(1), 200L);
         User user = new User("유저", "direct", null);
         Vote vote = new Vote(user, issue, yesOption, 10);
         when(issueRepository.findById(1L)).thenReturn(Optional.of(issue));
         when(voteRepository.findByUserIdAndIssueId(9L, 1L)).thenReturn(Optional.of(vote));
-        when(voteRepository.countByIssueIdAndIssueOptionId(1L, 100L)).thenReturn(3L);
-        when(voteRepository.countByIssueIdAndIssueOptionId(1L, 200L)).thenReturn(1L);
+        when(voteRepository.countByOptionForIssues(anyCollection())).thenReturn(List.<Object[]>of(new Object[]{100L, 1L}));
 
         IssueResponse response = issueController.get(1L, 9L);
 
         assertThat(response.myOptionId()).isEqualTo(100L);
-        assertThat(response.options()).noneMatch(option -> option.voteCount() == null);
+        assertThat(response.myStake()).isEqualTo(10);
+        assertThat(response.options().get(0).percent()).isEqualTo(100);
     }
 
     @Test
-    void get_confirmedIssue_exposesOptionVoteCounts() throws Exception {
+    void get_confirmedIssue_usesSnapshotForPercents() throws Exception {
         Issue issue = new Issue(category, "제목", null, LocalDateTime.now().minusDays(2), LocalDateTime.now().minusHours(1),
-                List.of("예", "아니오"));
-        IssueOption yesOption = issue.getOptions().get(0);
-        setId(yesOption, 100L);
+                List.of("예", "아니오", "모름"));
+        setId(issue.getOptions().get(0), 100L);
         setId(issue.getOptions().get(1), 200L);
-        issue.closeForResult(Map.of(100L, 6, 200L, 4));
-        issue.confirm(yesOption, LocalDateTime.now(), null);
+        setId(issue.getOptions().get(2), 300L);
+        issue.closeForResult(Map.of(100L, 1, 200L, 1, 300L, 1));
+        issue.confirm(issue.getOptions().get(0), LocalDateTime.now(), null);
         when(issueRepository.findById(1L)).thenReturn(Optional.of(issue));
 
         IssueResponse response = issueController.get(1L, null);
 
-        assertThat(response.options().get(0).voteCount()).isEqualTo(6);
-        assertThat(response.options().get(1).voteCount()).isEqualTo(4);
+        // 33/33/33 -> 합 99라 가장 큰 값(동률이면 앞)에 1을 더한다.
+        assertThat(response.options()).extracting(o -> o.percent()).containsExactly(34, 33, 33);
+        assertThat(response.options()).allSatisfy(option -> assertThat(option.voteCount()).isNull());
     }
 
     @Test
-    void castVote_returnsLiveCountsFromRepository() throws Exception {
+    void get_deletedIssue_isNotFound() throws Exception {
+        Issue issue = openIssueWithOptionIds();
+        issue.markDeleted(LocalDateTime.now());
+        when(issueRepository.findById(1L)).thenReturn(Optional.of(issue));
+
+        assertThatThrownBy(() -> issueController.get(1L, null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void castVote_returnsPercentsAndRemainingCredibility() throws Exception {
         User user = new User("유저", "direct", null);
-        Issue issue = new Issue(category, "제목", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1),
-                List.of("예", "아니오"));
-        IssueOption yesOption = issue.getOptions().get(0);
-        IssueOption noOption = issue.getOptions().get(1);
-        setId(yesOption, 100L);
-        setId(noOption, 200L);
-        Vote vote = new Vote(user, issue, yesOption, 10);
+        Issue issue = openIssueWithOptionIds();
+        Vote vote = new Vote(user, issue, issue.getOptions().get(0), 10);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(voteService.castVote(eq(user), eq(5L), eq(100L), eq(10))).thenReturn(vote);
-        when(voteRepository.countByIssueIdAndIssueOptionId(5L, 100L)).thenReturn(7L);
-        when(voteRepository.countByIssueIdAndIssueOptionId(5L, 200L)).thenReturn(3L);
+        when(voteRepository.countByOptionForIssues(anyCollection()))
+                .thenReturn(List.<Object[]>of(new Object[]{100L, 7L}, new Object[]{200L, 3L}));
 
         VoteResponse response = issueController.castVote(5L, new VoteRequest(1L, 100L, 10));
 
-        assertThat(response.liveCounts()).hasSize(2);
-        assertThat(response.liveCounts().get(0).voteCount()).isEqualTo(7);
-        assertThat(response.liveCounts().get(1).voteCount()).isEqualTo(3);
+        assertThat(response.liveCounts()).extracting(o -> o.percent()).containsExactly(70, 30);
+        assertThat(response.remainingCredibility()).isEqualTo(user.getCredibilityScore());
+    }
+
+    private Issue openIssueWithOptionIds() throws Exception {
+        Issue issue = new Issue(category, "제목", null, LocalDateTime.now(), LocalDateTime.now().plusDays(1),
+                List.of("예", "아니오"));
+        setId(issue, Issue.class, 1L);
+        setId(issue.getOptions().get(0), 100L);
+        setId(issue.getOptions().get(1), 200L);
+        return issue;
     }
 
     private void setId(IssueOption option, Long id) throws Exception {
-        setId((Object) option, IssueOption.class, id);
-    }
-
-    private void setId(Issue issue, Long id) throws Exception {
-        setId((Object) issue, Issue.class, id);
+        setId(option, IssueOption.class, id);
     }
 
     private void setId(Object target, Class<?> type, Long id) throws Exception {

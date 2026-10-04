@@ -1,22 +1,26 @@
 package com.predict.controller;
 
 import com.predict.Issue;
-import com.predict.IssueOption;
 import com.predict.Reply;
+import com.predict.Report;
 import com.predict.User;
 import com.predict.Vote;
+import com.predict.controller.dto.CommunityRequests.ChangeVoteRequest;
+import com.predict.controller.dto.CommunityRequests.LikeResponse;
+import com.predict.controller.dto.CommunityRequests.ReportRequest;
 import com.predict.controller.dto.IssueOptionResponse;
 import com.predict.controller.dto.IssueResponse;
 import com.predict.controller.dto.ReplyCreateRequest;
 import com.predict.controller.dto.ReplyResponse;
 import com.predict.controller.dto.VoteRequest;
 import com.predict.controller.dto.VoteResponse;
-import com.predict.enums.IssueStatus;
 import com.predict.repository.IssueRepository;
 import com.predict.repository.UserRepository;
 import com.predict.repository.VoteRepository;
 import com.predict.service.CurrentUserService;
 import com.predict.service.ReplyService;
+import com.predict.service.ReportService;
+import com.predict.service.VoteCountService;
 import com.predict.service.VoteService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -24,6 +28,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -36,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 주제 공개 조회, 투표, 댓글. 생성/결과확정/정정/수정 등 관리자 전용 액션은
+ * 주제 공개 조회, 투표/선택 변경, 댓글. 생성/결과확정/정정/수정/삭제 등 관리자 전용 액션은
  * AdminIssueController(/api/admin/issues)로 분리되어 role=admin 게이팅이 걸려 있다.
  */
 @RestController
@@ -47,54 +52,45 @@ public class IssueController {
     private final UserRepository userRepository;
     private final VoteRepository voteRepository;
     private final VoteService voteService;
+    private final VoteCountService voteCountService;
     private final ReplyService replyService;
+    private final ReportService reportService;
     private final CurrentUserService currentUserService;
 
     public IssueController(IssueRepository issueRepository, UserRepository userRepository,
-                            VoteRepository voteRepository, VoteService voteService,
-                            ReplyService replyService, CurrentUserService currentUserService) {
+                            VoteRepository voteRepository, VoteService voteService, VoteCountService voteCountService,
+                            ReplyService replyService, ReportService reportService,
+                            CurrentUserService currentUserService) {
         this.issueRepository = issueRepository;
         this.userRepository = userRepository;
         this.voteRepository = voteRepository;
         this.voteService = voteService;
+        this.voteCountService = voteCountService;
         this.replyService = replyService;
+        this.reportService = reportService;
         this.currentUserService = currentUserService;
     }
 
     @GetMapping
     public List<IssueResponse> list(@RequestParam(required = false) Long userId) {
-        List<Issue> issues = issueRepository.findAll();
-        if (userId == null) {
-            return issues.stream().map(IssueResponse::from).toList();
-        }
+        List<Issue> issues = issueRepository.findByDeletedFalse();
+        Map<Long, Integer> counts = voteCountService.countsByOption(issues);
         Map<Long, Vote> myVoteByIssueId = new HashMap<>();
-        for (Vote vote : voteRepository.findByUserIdOrderByVotedAtDesc(userId)) {
-            myVoteByIssueId.put(vote.getIssue().getId(), vote);
+        if (userId != null) {
+            for (Vote vote : voteRepository.findByUserIdOrderByVotedAtDesc(userId)) {
+                myVoteByIssueId.put(vote.getIssue().getId(), vote);
+            }
         }
         return issues.stream()
-                .map(issue -> {
-                    Vote myVote = myVoteByIssueId.get(issue.getId());
-                    Long myOptionId = myVote != null ? myVote.getIssueOption().getId() : null;
-                    Integer myStake = myVote != null ? myVote.getStake() : null;
-                    Map<Long, Integer> liveCounts = needsLiveCounts(issue, myOptionId)
-                            ? liveCountsByOptionId(issue)
-                            : null;
-                    return IssueResponse.from(issue, myOptionId, myStake, liveCounts);
-                })
+                .map(issue -> toResponse(issue, counts, myVoteByIssueId.get(issue.getId())))
                 .toList();
     }
 
     @GetMapping("/{issueId}")
     public IssueResponse get(@PathVariable Long issueId, @RequestParam(required = false) Long userId) {
         Issue issue = requireIssue(issueId);
-        if (userId == null) {
-            return IssueResponse.from(issue);
-        }
-        Vote myVote = voteRepository.findByUserIdAndIssueId(userId, issueId).orElse(null);
-        Long myOptionId = myVote != null ? myVote.getIssueOption().getId() : null;
-        Integer myStake = myVote != null ? myVote.getStake() : null;
-        Map<Long, Integer> liveCounts = needsLiveCounts(issue, myOptionId) ? liveCountsByOptionId(issue) : null;
-        return IssueResponse.from(issue, myOptionId, myStake, liveCounts);
+        Vote myVote = userId == null ? null : voteRepository.findByUserIdAndIssueId(userId, issueId).orElse(null);
+        return toResponse(issue, voteCountService.countsByOption(issue), myVote);
     }
 
     @PostMapping("/{issueId}/votes")
@@ -102,17 +98,22 @@ public class IssueController {
     public VoteResponse castVote(@PathVariable Long issueId, @Valid @RequestBody VoteRequest request) {
         User user = requireUser(request.userId());
         Vote vote = voteService.castVote(user, issueId, request.optionId(), request.stake());
-        Issue issue = vote.getIssue();
-        List<IssueOptionResponse> liveCounts = issue.getOptions().stream()
-                .map(option -> new IssueOptionResponse(option.getId(), option.getText(),
-                        (int) voteRepository.countByIssueIdAndIssueOptionId(issueId, option.getId())))
-                .toList();
-        return VoteResponse.of(vote, liveCounts, user.getCredibilityScore());
+        return VoteResponse.of(vote, percentsOf(vote.getIssue()), user.getCredibilityScore());
+    }
+
+    /** 마감 전 선택 변경 — 스테이크는 최초 투표 때 건 그대로 유지된다. */
+    @PutMapping("/{issueId}/votes/me")
+    public VoteResponse changeVote(@RequestHeader("Authorization") String authorization,
+                                    @PathVariable Long issueId, @Valid @RequestBody ChangeVoteRequest request) {
+        User user = currentUserService.requireUser(authorization);
+        Vote vote = voteService.changeVote(user, issueId, request.optionId());
+        return VoteResponse.of(vote, percentsOf(vote.getIssue()), user.getCredibilityScore());
     }
 
     @GetMapping("/{issueId}/replies")
-    public List<ReplyResponse> listReplies(@PathVariable Long issueId) {
-        return replyService.listForIssue(issueId).stream().map(ReplyResponse::from).toList();
+    public List<ReplyResponse> listReplies(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                           @PathVariable Long issueId) {
+        return replyService.listForIssue(issueId, currentUserService.optionalUser(authorization));
     }
 
     @PostMapping("/{issueId}/replies")
@@ -120,9 +121,12 @@ public class IssueController {
     public ReplyResponse createReply(@RequestHeader("Authorization") String authorization,
                                       @PathVariable Long issueId,
                                       @Valid @RequestBody ReplyCreateRequest request) {
-        User author = currentUserService.requireUser(authorization);
+        User author = currentUserService.requireActiveUser(authorization);
         Reply reply = replyService.createForIssue(author, issueId, request.content());
-        return ReplyResponse.from(reply);
+        Long authorOptionId = voteRepository.findByUserIdAndIssueId(author.getId(), issueId)
+                .map(vote -> vote.getIssueOption().getId())
+                .orElse(null);
+        return ReplyResponse.from(reply, 0, false, authorOptionId, List.of());
     }
 
     @DeleteMapping("/{issueId}/replies/{replyId}")
@@ -133,21 +137,34 @@ public class IssueController {
         replyService.delete(replyId, requester);
     }
 
-    private boolean needsLiveCounts(Issue issue, Long myOptionId) {
-        return issue.getStatus() == IssueStatus.OPEN && myOptionId != null;
+    @PostMapping("/{issueId}/replies/{replyId}/like")
+    public LikeResponse likeReply(@RequestHeader("Authorization") String authorization,
+                                  @PathVariable Long issueId, @PathVariable Long replyId) {
+        return replyService.toggleLike(replyId, currentUserService.requireUser(authorization));
     }
 
-    /** OPEN 상태에서 본인에게 노출할 실시간 득표수. IssueOption.voteCount는 마감 전엔 null이라 직접 집계한다. */
-    private Map<Long, Integer> liveCountsByOptionId(Issue issue) {
-        Map<Long, Integer> counts = new HashMap<>();
-        for (IssueOption option : issue.getOptions()) {
-            counts.put(option.getId(), (int) voteRepository.countByIssueIdAndIssueOptionId(issue.getId(), option.getId()));
-        }
-        return counts;
+    @PostMapping("/{issueId}/replies/{replyId}/reports")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reportReply(@RequestHeader("Authorization") String authorization,
+                            @PathVariable Long issueId, @PathVariable Long replyId,
+                            @Valid @RequestBody ReportRequest request) {
+        reportService.report(Report.TargetType.REPLY, replyId, currentUserService.requireUser(authorization),
+                request.reason());
+    }
+
+    private IssueResponse toResponse(Issue issue, Map<Long, Integer> counts, Vote myVote) {
+        return IssueResponse.from(issue, counts,
+                myVote != null ? myVote.getIssueOption().getId() : null,
+                myVote != null ? myVote.getStake() : null);
+    }
+
+    private List<IssueOptionResponse> percentsOf(Issue issue) {
+        return IssueOptionResponse.percentsOf(issue.getOptions(), voteCountService.countsByOption(issue));
     }
 
     private Issue requireIssue(Long issueId) {
         return issueRepository.findById(issueId)
+                .filter(issue -> !issue.isDeleted())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 주제: " + issueId));
     }
 

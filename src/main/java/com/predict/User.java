@@ -24,12 +24,13 @@ import java.time.LocalDateTime;
 public class User {
 
     /**
-     * 신규 유저에게 기본으로 지급되는 신용도. 이슈 투표가 이제 이 점수를 베팅하는 방식이라
-     * (VoteService.castVote 참고) 0으로 시작하면 아무것도 걸 수 없어 100을 시드로 준다.
-     * 100은 티어 구간표(3-1절)상 실버 문턱이라, 신규 유저는 언랭크/브론즈를 건너뛰고
-     * 바로 실버로 시작한다 — 의도된 동작이다.
+     * 신규 유저에게 기본으로 지급되는 신용도. 이슈 투표가 이 점수를 베팅하는 방식이라
+     * (VoteService.castVote 참고) 넉넉히 500을 시드로 준다 — 티어 구간표(TierPolicy)상 골드 시작.
      */
-    public static final int STARTING_CREDIBILITY_SCORE = 100;
+    public static final int STARTING_CREDIBILITY_SCORE = 500;
+
+    /** 시작 신용도가 100이던 시절에 가입한 유저의 시작값. 컬럼 추가 시 기존 행은 이 값으로 채워진다. */
+    public static final int LEGACY_STARTING_CREDIBILITY_SCORE = 100;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,9 +64,35 @@ public class User {
     @Column(name = "tier", nullable = false, length = 20)
     private Tier tier = Tier.UNRANKED;
 
-    /** 관리자 페이지 접근 권한. 부여/해제는 API 없이 DB에서 직접 처리한다. */
+    /** 관리자 페이지 접근 권한. 관리자 페이지(AdminUserController)에서 부여/해제한다. */
     @Column(name = "role", nullable = false, length = 10)
     private Role role = Role.USER;
+
+    /** 이메일 가입 유저만 채워진다(소셜 가입은 null). */
+    @Column(name = "email", unique = true, length = 100)
+    private String email;
+
+    /** BCrypt 해시. 이메일 가입 유저만 채워진다. */
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
+    /**
+     * 가입 시점의 시작 신용도. 오확정 정정(SettlementCorrectionService)이 잔액을 처음부터 재생할 때
+     * 기준점으로 쓴다 — 시작값이 100에서 500으로 바뀌어서 유저마다 다를 수 있다.
+     */
+    @Column(name = "starting_credibility_score", nullable = false, columnDefinition = "int default 100")
+    private int startingCredibilityScore = LEGACY_STARTING_CREDIBILITY_SCORE;
+
+    /** 관리자가 활동을 정지한 상태. true면 투표·댓글·글쓰기를 막는다(CurrentUserService.requireActiveUser). */
+    @Column(name = "suspended", nullable = false, columnDefinition = "boolean default false")
+    private boolean suspended = false;
+
+    @Column(name = "marketing_agreed", nullable = false, columnDefinition = "boolean default false")
+    private boolean marketingAgreed = false;
+
+    /** 필수 약관 동의 시각. 약관 동의 단계 이전에 가입한 유저는 null. */
+    @Column(name = "terms_agreed_at")
+    private LocalDateTime termsAgreedAt;
 
     /**
      * 다이아/마스터 주간 활동성 미달로 강등된 상태인지(WeeklyActivityService가 갱신).
@@ -92,7 +119,36 @@ public class User {
         this.referredBy = referredBy;
         this.kakaoId = kakaoId;
         this.credibilityScore = STARTING_CREDIBILITY_SCORE;
+        this.startingCredibilityScore = STARTING_CREDIBILITY_SCORE;
         this.tier = TierPolicy.fromScore(STARTING_CREDIBILITY_SCORE);
+    }
+
+    /** 이메일 가입. */
+    public static User forEmail(String nickname, String email, String passwordHash, boolean marketingAgreed) {
+        User user = new User(nickname, "email", null, null);
+        user.email = email;
+        user.passwordHash = passwordHash;
+        user.agreeTerms(marketingAgreed);
+        return user;
+    }
+
+    /** 소셜 가입 마무리(닉네임·약관 단계) — 소셜 로그인 직후 자동 생성된 유저의 닉네임을 바꾸고 약관 동의를 기록한다. */
+    public void completeProfile(String nickname, boolean marketingAgreed) {
+        this.nickname = nickname;
+        agreeTerms(marketingAgreed);
+    }
+
+    private void agreeTerms(boolean marketingAgreed) {
+        this.marketingAgreed = marketingAgreed;
+        this.termsAgreedAt = LocalDateTime.now();
+    }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
+    public void setSuspended(boolean suspended) {
+        this.suspended = suspended;
     }
 
     /**
@@ -160,5 +216,29 @@ public class User {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public int getStartingCredibilityScore() {
+        return startingCredibilityScore;
+    }
+
+    public boolean isSuspended() {
+        return suspended;
+    }
+
+    public boolean isMarketingAgreed() {
+        return marketingAgreed;
+    }
+
+    public LocalDateTime getTermsAgreedAt() {
+        return termsAgreedAt;
     }
 }

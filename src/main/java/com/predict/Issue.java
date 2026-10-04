@@ -70,6 +70,17 @@ public class Issue {
     @OrderBy("displayOrder ASC")
     private List<IssueOption> options = new ArrayList<>();
 
+    /** 관리자가 올린 커버 이미지 URL(UploadController). 없으면 null. */
+    @Column(name = "cover_image_url", length = 500)
+    private String coverImageUrl;
+
+    /** 소프트 삭제. 삭제된 이슈는 모든 공개/관리자 목록에서 빠진다(AdminIssueService.deleteIssue). */
+    @Column(name = "is_deleted", nullable = false, columnDefinition = "boolean default false")
+    private boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -79,11 +90,18 @@ public class Issue {
 
     public Issue(Category category, String title, String description,
                  LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts) {
+        this(category, title, description, voteStartAt, voteDeadlineAt, optionTexts, null);
+    }
+
+    public Issue(Category category, String title, String description,
+                 LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts,
+                 String coverImageUrl) {
         this.category = category;
         this.title = title;
         this.description = description;
         this.voteStartAt = voteStartAt;
         this.voteDeadlineAt = voteDeadlineAt;
+        this.coverImageUrl = coverImageUrl;
         this.status = IssueStatus.OPEN;
         addOptions(optionTexts);
     }
@@ -117,8 +135,10 @@ public class Issue {
 
     /** 참여자 0명일 때만 허용되는 전체 내용 수정(AdminIssueService). 선택지도 통째로 교체된다. */
     public void updateContent(Category category, String title, String description,
-                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts) {
+                               LocalDateTime voteStartAt, LocalDateTime voteDeadlineAt, List<String> optionTexts,
+                               String coverImageUrl) {
         this.category = category;
+        this.coverImageUrl = coverImageUrl;
         this.title = title;
         this.description = description;
         this.voteStartAt = voteStartAt;
@@ -130,6 +150,23 @@ public class Issue {
     /** 마감시각 연장 전용(AdminIssueService). 단축은 허용하지 않는다(서비스 레이어에서 검증). */
     public void extendDeadline(LocalDateTime newDeadline) {
         this.voteDeadlineAt = newDeadline;
+    }
+
+    /**
+     * 결과대기 이슈의 마감을 미래로 연장하면 다시 진행중으로 되돌린다. 마감 시점 득표 스냅샷은
+     * 다음 마감 때 다시 찍히므로 비워 둔다(진행중 동안 voteCount는 항상 null이라는 불변식 유지).
+     */
+    public void reopen(LocalDateTime newDeadline) {
+        this.voteDeadlineAt = newDeadline;
+        this.status = IssueStatus.OPEN;
+        for (IssueOption option : options) {
+            option.clearVoteCount();
+        }
+    }
+
+    public void markDeleted(LocalDateTime deletedAt) {
+        this.deleted = true;
+        this.deletedAt = deletedAt;
     }
 
     private void addOptions(List<String> optionTexts) {

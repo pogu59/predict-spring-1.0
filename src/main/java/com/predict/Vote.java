@@ -16,7 +16,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * 투표 참여 기록. 유저당 주제 1표만 허용된다(uq_votes_user_issue).
+ * 투표 참여 기록. 유저당 주제 1표만 허용된다(uq_votes_user_issue). 마감 전까지는 선택지만
+ * 바꿀 수 있고(changeOption), 베팅액(stake)은 최초 투표 때 건 그대로 유지된다.
  */
 @Getter
 @Entity
@@ -61,6 +62,10 @@ public class Vote {
         this.issue = issue;
         this.issueOption = issueOption;
         this.stake = stake;
+    }
+
+    public void changeOption(IssueOption issueOption) {
+        this.issueOption = issueOption;
     }
 
 }

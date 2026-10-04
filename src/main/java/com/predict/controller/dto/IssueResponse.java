@@ -8,11 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 선택지별 득표수는 status가 OPEN이면 감춘다 — 단, 요청한 유저(myOptionId)가 이미 이 주제에
- * 투표했다면 본인에게는 즉시 실시간으로 노출한다. 마감 전 득표비율 비공개 원칙
- * (docs/predict.md 2-6절)을 응답 형태로 강제하되, "투표 완료 직후 본인 노출" 예외를 반영한다.
- * IssueOption.voteCount 컬럼은 마감 시점 스냅샷이라 OPEN 동안은 항상 null이므로, 본인 노출
- * 케이스에서는 liveCounts(득표수 실시간 집계 결과)를 대신 사용한다.
+ * 공개 이슈 응답. 선택지별 비율(percent)은 상태와 무관하게 항상 공개하고(투표 전 포함),
+ * 참여 인원·득표수는 어디에도 싣지 않는다.
  */
 public record IssueResponse(
         Long id,
@@ -25,22 +22,16 @@ public record IssueResponse(
         LocalDateTime confirmedAt,
         Long correctOptionId,
         List<IssueOptionResponse> options,
+        String coverImageUrl,
         LocalDateTime createdAt,
         Long myOptionId,
         Integer myStake
 ) {
-    public static IssueResponse from(Issue issue) {
-        return from(issue, null, null, null);
-    }
-
     /**
-     * myOptionId: 요청한 유저가 이 주제에 투표했다면 그 선택지 id, 아니면 null.
-     * myStake: 그 투표에 건 신용도. myOptionId가 null이면 함께 null.
-     * liveCounts: myOptionId가 있고 issue가 아직 OPEN일 때만 쓰이는, optionId -> 실시간 득표수 집계.
+     * countsByOptionId: VoteCountService가 집계한 선택지별 득표수(비율 계산에만 쓴다).
+     * myOptionId/myStake: 요청한 유저가 이 주제에 투표했다면 그 선택지 id와 건 신용도, 아니면 null.
      */
-    public static IssueResponse from(Issue issue, Long myOptionId, Integer myStake, Map<Long, Integer> liveCounts) {
-        boolean revealOpen = issue.getStatus() == IssueStatus.OPEN && myOptionId != null;
-        boolean countsVisible = issue.getStatus() != IssueStatus.OPEN || revealOpen;
+    public static IssueResponse from(Issue issue, Map<Long, Integer> countsByOptionId, Long myOptionId, Integer myStake) {
         return new IssueResponse(
                 issue.getId(),
                 issue.getCategory().getId(),
@@ -51,12 +42,8 @@ public record IssueResponse(
                 issue.getVoteDeadlineAt(),
                 issue.getConfirmedAt(),
                 issue.getCorrectOption() != null ? issue.getCorrectOption().getId() : null,
-                issue.getOptions().stream()
-                        .map(option -> new IssueOptionResponse(option.getId(), option.getText(),
-                                !countsVisible ? null
-                                        : revealOpen ? liveCounts.getOrDefault(option.getId(), 0)
-                                        : option.getVoteCount()))
-                        .toList(),
+                IssueOptionResponse.percentsOf(issue.getOptions(), countsByOptionId),
+                issue.getCoverImageUrl(),
                 issue.getCreatedAt(),
                 myOptionId,
                 myStake);

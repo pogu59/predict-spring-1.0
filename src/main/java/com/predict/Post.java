@@ -1,6 +1,8 @@
 package com.predict;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -8,16 +10,18 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * 자유 게시판 글. 수정은 지원하지 않는다(삭제 후 재작성) — 투표 확정 후 선택을 못 바꾸는 것과
- * 같은 결의 제품 정책. 삭제는 소프트 삭제(deleted/deletedAt)만 하고 content는 남겨둔다
- * (신고 대응·복구용, 목록/상세 조회에서만 제외).
+ * 자유 게시판 글. 작성자는 제목·본문·이미지를 수정할 수 있다. 삭제는 소프트 삭제(deleted/deletedAt)만
+ * 하고 content는 남겨둔다(신고 대응·복구용, 목록/상세 조회에서만 제외). 관리자는 글을 숨길 수 있다(hidden).
  */
 @Getter
 @Entity
@@ -39,6 +43,16 @@ public class Post {
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /** 첨부 이미지 URL(UploadController), 최대 4장. */
+    @ElementCollection
+    @CollectionTable(name = "post_images", joinColumns = @JoinColumn(name = "post_id"))
+    @OrderColumn(name = "image_order")
+    @Column(name = "url", nullable = false, length = 500)
+    private List<String> images = new ArrayList<>();
+
+    @Column(name = "is_hidden", nullable = false, columnDefinition = "boolean default false")
+    private boolean hidden = false;
+
     @Column(name = "view_count", nullable = false)
     private int viewCount = 0;
 
@@ -56,9 +70,25 @@ public class Post {
     }
 
     public Post(User author, String title, String content) {
+        this(author, title, content, List.of());
+    }
+
+    public Post(User author, String title, String content, List<String> images) {
         this.author = author;
         this.title = title;
         this.content = content;
+        this.images.addAll(images);
+    }
+
+    public void update(String title, String content, List<String> images) {
+        this.title = title;
+        this.content = content;
+        this.images.clear();
+        this.images.addAll(images);
+    }
+
+    public void setHidden(boolean hidden) {
+        this.hidden = hidden;
     }
 
     public void increaseViewCount() {
