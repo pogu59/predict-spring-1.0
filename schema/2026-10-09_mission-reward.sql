@@ -1,7 +1,7 @@
 -- =====================================================================
 -- 2026-10-09 · 미션 · 리워드 포인트 스키마 (신규 테이블 6개)
 -- 대상: MySQL 8.x
--- 선행: 기존 스키마(users 테이블, user_id BIGINT UNSIGNED)가 먼저 있어야 한다.
+-- 선행: 기존 스키마(users 테이블, user_id BIGINT — Hibernate가 만든 운영 테이블은 부호 있는 BIGINT)가 먼저 있어야 한다.
 --
 -- 신용도(users.credibility_score)와 리워드 포인트는 완전히 분리한다.
 --   - users 테이블은 바꾸지 않는다. 포인트 잔액은 reward_wallets에 따로 둔다.
@@ -50,7 +50,7 @@ CREATE TABLE mission_questions (
 CREATE TABLE mission_submissions (
     submission_id   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     mission_id      BIGINT UNSIGNED NOT NULL,
-    user_id         BIGINT UNSIGNED NOT NULL,
+    user_id         BIGINT          NOT NULL,
     submitted_on    DATE            NOT NULL,               -- 제출한 날짜(출석 하루 1회 판정)
     answers         VARCHAR(500)    NOT NULL DEFAULT '',     -- 문항 순서대로 고른 보기 인덱스, 쉼표 구분(출석은 빈 문자열)
     duration_ms     BIGINT          NOT NULL,               -- 화면을 연 뒤 제출까지 걸린 시간
@@ -71,7 +71,7 @@ CREATE TABLE mission_submissions (
 -- 4. reward_wallets : 리워드 포인트 잔액(유저당 1행, 첫 적립 때 생성)
 -- ---------------------------------------------------------------------
 CREATE TABLE reward_wallets (
-    user_id     BIGINT UNSIGNED PRIMARY KEY,
+    user_id     BIGINT          PRIMARY KEY,
     balance     INT UNSIGNED NOT NULL DEFAULT 0,            -- 0 미만 불가(애플리케이션에서도 강제)
     version     BIGINT       NOT NULL DEFAULT 0,            -- 낙관적 락(@Version)
     updated_at  DATETIME     NULL,
@@ -85,13 +85,13 @@ CREATE TABLE reward_wallets (
 -- ---------------------------------------------------------------------
 CREATE TABLE reward_exchange_requests (
     exchange_id     BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id         BIGINT UNSIGNED NOT NULL,
+    user_id         BIGINT          NOT NULL,
     product_code    VARCHAR(50)     NOT NULL,
     product_name    VARCHAR(100)    NOT NULL,               -- 신청 시점 상품명 복사본
     points          INT UNSIGNED    NOT NULL,               -- 신청 시점 포인트 복사본(신청 즉시 차감)
     status          VARCHAR(20)     NOT NULL DEFAULT 'requested', -- requested / sent / rejected / canceled
     reject_reason   VARCHAR(200)    NULL,
-    handled_by      BIGINT UNSIGNED NULL,                   -- 처리한 관리자
+    handled_by      BIGINT          NULL,                   -- 처리한 관리자
     handled_at      DATETIME        NULL,
     created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -107,7 +107,7 @@ CREATE TABLE reward_exchange_requests (
 -- ---------------------------------------------------------------------
 CREATE TABLE reward_transactions (
     transaction_id  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id         BIGINT UNSIGNED NOT NULL,
+    user_id         BIGINT          NOT NULL,
     type            VARCHAR(20)     NOT NULL,               -- earn / bonus / exchange / refund / adjust
     amount          INT             NOT NULL,               -- 부호 있음(+적립, -교환 신청)
     balance_after   INT             NOT NULL,               -- 반영 후 잔액
