@@ -45,4 +45,30 @@ public final class VotePercentages {
         }
         return result;
     }
+
+    /**
+     * 보기 순서대로 센 응답 수 → 같은 규칙의 비율 배열. 미션 결과(MissionService.results)처럼
+     * IssueOption이 없는 곳에서 쓴다. 전체 0이면 모두 0.
+     */
+    public static int[] ofCounts(int[] counts) {
+        int[] rounded = new int[counts.length];
+        int total = 0;
+        for (int count : counts) {
+            total += count;
+        }
+        if (total == 0) {
+            return rounded;
+        }
+        int sum = 0;
+        int maxIndex = 0;
+        for (int i = 0; i < counts.length; i++) {
+            rounded[i] = (int) Math.round(counts[i] * 100.0 / total);
+            sum += rounded[i];
+            if (rounded[i] > rounded[maxIndex]) {
+                maxIndex = i;
+            }
+        }
+        rounded[maxIndex] += 100 - sum;
+        return rounded;
+    }
 }
